@@ -1,0 +1,150 @@
+@page "/documentos/nuevo"
+@page "/documentos/{Id:int}/editar"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject DocumentoService DocSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>@(Id.HasValue ? "Editar documento" : "Nuevo documento") · AMPA Gestión</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/documentos" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="fw-bold mb-0">@(Id.HasValue ? "Editar documento" : "Nuevo documento")</h4>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <EditForm Model="documento" OnValidSubmit="Guardar">
+        <DataAnnotationsValidator />
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="card card-form shadow-sm mb-3">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">Datos del documento</h6>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Título <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="documento.Titulo" class="form-control" />
+                                <ValidationMessage For="() => documento.Titulo" class="text-danger small" />
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Tipo</label>
+                                <InputSelect @bind-Value="documento.Tipo" class="form-select">
+                                    @foreach (var t in Enum.GetValues<TipoDocumento>())
+                                    { <option value="@t">@t</option> }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Fecha del documento</label>
+                                <InputDate @bind-Value="documento.FechaDocumento" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Fecha de subida</label>
+                                <InputDate @bind-Value="documento.FechaSubida" class="form-control" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Descripción</label>
+                                <InputTextArea @bind-Value="documento.Descripcion" class="form-control" rows="3" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Observaciones</label>
+                                <InputTextArea @bind-Value="documento.Observaciones" class="form-control" rows="2" />
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <InputCheckbox @bind-Value="documento.Publico" class="form-check-input" id="chkPublico" />
+                                    <label class="form-check-label" for="chkPublico">Visible públicamente en la web del AMPA</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alertas -->
+                <div class="card card-form shadow-sm mb-3">
+                    <div class="card-body">
+                        <AlertasEditor Alertas="documento.Alertas" />
+                    </div>
+                </div>
+
+                <!-- Archivos adjuntos -->
+                <div class="card card-form shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">
+                            <i class="bi bi-paperclip me-1"></i>Archivos adjuntos
+                            <small class="text-muted fw-normal">(páginas escaneadas, PDF, Word…)</small>
+                        </h6>
+                        <SubidaMultiple
+                            Url1="@documento.Foto1Url" Url2="@documento.Foto2Url" Url3="@documento.Foto3Url"
+                            Url4="@documento.Foto4Url" Url5="@documento.Foto5Url" Url6="@documento.Foto6Url"
+                            Nombre1="@documento.Archivo1Nombre" Nombre2="@documento.Archivo2Nombre" Nombre3="@documento.Archivo3Nombre"
+                            Nombre4="@documento.Archivo4Nombre" Nombre5="@documento.Archivo5Nombre" Nombre6="@documento.Archivo6Nombre"
+                            OnArchivoChanged="OnArchivoDocumento"
+                            Carpeta="ampa/documentos" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@guardando">
+                        @if (guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-floppy me-1"></i>@(Id.HasValue ? "Guardar cambios" : "Crear documento")
+                    </button>
+                    <a href="/documentos" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    Documento documento = new();
+    bool cargando  = true;
+    bool guardando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existente = await DocSvc.GetByIdAsync(Id.Value);
+            if (existente != null) documento = existente;
+            else Nav.NavigateTo("/documentos");
+        }
+        cargando = false;
+    }
+
+    void OnArchivoDocumento((int idx, string? url, string? nombre) args)
+    {
+        switch (args.idx)
+        {
+            case 0: documento.Foto1Url = args.url; documento.Archivo1Nombre = args.nombre; break;
+            case 1: documento.Foto2Url = args.url; documento.Archivo2Nombre = args.nombre; break;
+            case 2: documento.Foto3Url = args.url; documento.Archivo3Nombre = args.nombre; break;
+            case 3: documento.Foto4Url = args.url; documento.Archivo4Nombre = args.nombre; break;
+            case 4: documento.Foto5Url = args.url; documento.Archivo5Nombre = args.nombre; break;
+            case 5: documento.Foto6Url = args.url; documento.Archivo6Nombre = args.nombre; break;
+        }
+    }
+
+    async Task Guardar()
+    {
+        guardando = true;
+        try
+        {
+            foreach (var al in documento.Alertas)
+            { al.TipoEntidad = TipoEntidadAlerta.Documento; al.DocumentoId = documento.Id > 0 ? documento.Id : null; }
+            if (Id.HasValue) { await DocSvc.ActualizarAsync(documento); Toast.ShowSuccess("Documento actualizado"); }
+            else             { await DocSvc.CrearAsync(documento);      Toast.ShowSuccess("Documento creado"); }
+            Nav.NavigateTo("/documentos");
+        }
+        catch (Exception ex) { Toast.ShowError($"Error: {ex.Message}"); guardando = false; }
+    }
+}

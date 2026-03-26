@@ -1,0 +1,230 @@
+@page "/facturas"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject FacturaService FacturaSvc
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Facturas · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0"><i class="bi bi-receipt me-2"></i>Facturas de gasto</h4>
+    <div class="d-flex gap-2">
+        <BotonesExportar Titulo="Facturas" Columnas="@colsFacturas" Filas="@FilasFacturas()" />
+        <a href="/facturas/nueva" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Nueva factura
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar proveedor o concepto…"
+                           value="@busqueda"
+                           @oninput="OnBusquedaInput" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="filtroCategoria" @bind:after="Buscar">
+                    <option value="">— Todas las categorías —</option>
+                    @foreach (var c in Enum.GetValues<CategoriaGasto>())
+                    {
+                        <option value="@c">@c</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="filtroPagadas" @bind:after="Buscar">
+                    <option value="">— Todas —</option>
+                    <option value="true">Pagadas</option>
+                    <option value="false">Pendientes de pago</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <small class="text-muted">@facturas.Count factura@(facturas.Count != 1 ? "s" : "")</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Totales rápidos -->
+<div class="row g-2 mb-3">
+    <div class="col-sm-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                <span class="text-muted" style="font-size:.85rem">Total selección</span>
+                <span class="fw-bold text-money">@facturas.Sum(f => f.Total).ToString("C")</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                <span class="text-muted" style="font-size:.85rem">Pagadas</span>
+                <span class="fw-bold text-success text-money">@facturas.Where(f => f.Pagado).Sum(f => f.Total).ToString("C")</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                <span class="text-muted" style="font-size:.85rem">Pendientes</span>
+                <span class="fw-bold text-danger text-money">@facturas.Where(f => !f.Pagado).Sum(f => f.Total).ToString("C")</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla -->
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>Concepto</th>
+                    <th>Categoría</th>
+                    <th class="text-end">Base</th>
+                    <th class="text-end">IVA</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-center">Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (cargando)
+                {
+                    <tr><td colspan="9" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                }
+                else if (!facturas.Any())
+                {
+                    <tr><td colspan="9" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>Sin facturas registradas
+                    </td></tr>
+                }
+                else
+                {
+                    @foreach (var f in facturas)
+                    {
+                        <tr>
+                            <td style="font-size:.85rem">@f.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td class="fw-semibold">@f.Proveedor</td>
+                            <td class="text-muted" style="font-size:.9rem;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                @f.Concepto
+                            </td>
+                            <td><span class="badge bg-light text-dark">@f.Categoria</span></td>
+                            <td class="text-end text-money">@f.BaseImponible.ToString("C")</td>
+                            <td class="text-end text-money text-muted">@f.IVA.ToString("C")</td>
+                            <td class="text-end text-money fw-semibold">@f.Total.ToString("C")</td>
+                            <td class="text-center">
+                                @if (f.Pagado)
+                                {
+                                    <span class="badge badge-pagado">✓ Pagada</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-pendiente">⏳ Pendiente</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    @if (!f.Pagado)
+                                    {
+                                        <button class="btn btn-sm btn-outline-success py-0" title="Marcar como pagada"
+                                                @onclick="() => MarcarPagada(f.Id)">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    }
+                                    <a href="/facturas/@f.Id/editar" class="btn btn-sm btn-outline-secondary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => ConfirmarEliminar(f)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (facturaAEliminar != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-body text-center p-4">
+                    <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-3 d-block"></i>
+                    <p class="fw-semibold mb-1">¿Eliminar factura?</p>
+                    <p class="text-muted mb-3" style="font-size:.9rem">@facturaAEliminar.Proveedor · @facturaAEliminar.Total.ToString("C")</p>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => facturaAEliminar = null">Cancelar</button>
+                        <button class="btn btn-danger btn-sm" @onclick="Eliminar">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<Factura> facturas = new();
+    bool cargando = true;
+    string busqueda = "";
+    string filtroCategoria = "";
+    string filtroPagadas = "";
+    Factura? facturaAEliminar;
+
+    protected override async Task OnInitializedAsync() => await Buscar();
+
+    async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        busqueda = e.Value?.ToString() ?? string.Empty;
+        await Buscar();
+    }
+
+    async Task Buscar()
+    {
+        cargando = true;
+        CategoriaGasto? cat = Enum.TryParse<CategoriaGasto>(filtroCategoria, out var c) ? c : null;
+        bool? pagadas = filtroPagadas switch { "true" => true, "false" => false, _ => null };
+        facturas = await FacturaSvc.GetTodasAsync(busqueda, cat, pagadas);
+        cargando = false;
+    }
+
+    void ConfirmarEliminar(Factura f) => facturaAEliminar = f;
+
+    async Task Eliminar()
+    {
+        if (facturaAEliminar == null) return;
+        await FacturaSvc.EliminarAsync(facturaAEliminar.Id);
+        Toast.ShowSuccess("Factura eliminada");
+        facturaAEliminar = null;
+        await Buscar();
+    }
+
+    async Task MarcarPagada(int id)
+    {
+        await FacturaSvc.MarcarPagadaAsync(id);
+        Toast.ShowSuccess("Factura marcada como pagada");
+        await Buscar();
+    }
+
+    static readonly string[] colsFacturas = { "Fecha", "Proveedor", "Concepto", "Categoría", "Base", "IVA", "Total", "Estado" };
+
+    object[][] FilasFacturas() => facturas.Select(f => new object[]
+    {
+        f.Fecha.ToString("dd/MM/yyyy"), f.Proveedor, f.Concepto,
+        f.Categoria.ToString(), f.BaseImponible.ToString("C"), f.IVA.ToString("C"),
+        f.Total.ToString("C"), f.Pagado ? "Pagada" : "Pendiente"
+    }).ToArray();
+}

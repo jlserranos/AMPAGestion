@@ -1,0 +1,212 @@
+@page "/socios"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject SocioService SocioSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Socios · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0"><i class="bi bi-people me-2"></i>Socios</h4>
+    <div class="d-flex gap-2">
+        <BotonesExportar Titulo="Socios" Columnas="@colsSocios" Filas="@FilasSocios()" />
+        <a href="/socios/nuevo" class="btn btn-primary btn-sm">
+            <i class="bi bi-person-plus me-1"></i>Nuevo socio
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar por nombre, email o DNI…"
+                           value="@busqueda"
+                           @oninput="OnBusquedaInput" />
+                    @if (!string.IsNullOrEmpty(busqueda))
+                    {
+                        <button class="btn btn-outline-secondary" @onclick="LimpiarBusqueda">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select form-select-sm" @bind="filtroEstado" @bind:after="Buscar">
+                    <option value="">— Todos los estados —</option>
+                    @foreach (var e in Enum.GetValues<EstadoPago>())
+                    {
+                        <option value="@e">@e</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">@socios.Count resultado@(socios.Count != 1 ? "s" : "")</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla -->
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Socio</th>
+                    <th>Contacto</th>
+                    <th class="text-center">Alumnos</th>
+                    <th class="text-center">Estado</th>
+                    <th>Alta</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (cargando)
+                {
+                    <tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                }
+                else if (!socios.Any())
+                {
+                    <tr><td colspan="6" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>No hay socios que coincidan con los filtros
+                    </td></tr>
+                }
+                else
+                {
+                    @foreach (var s in socios)
+                    {
+                        <tr class="cursor-pointer" @onclick="() => VerDetalle(s.Id)">
+                            <td>
+                                <div class="fw-semibold">@s.Apellidos</div>
+                                <div class="text-muted" style="font-size:.85rem">@s.Nombre</div>
+                            </td>
+                            <td>
+                                <div>@s.Email</div>
+                                <div class="text-muted" style="font-size:.85rem">@s.Telefono</div>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary rounded-pill">@s.Alumnos.Count</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge @BadgeEstado(s.Estado) px-2 py-1">
+                                    @BadgeIcon(s.Estado) @s.Estado
+                                </span>
+                            </td>
+                            <td class="text-muted" style="font-size:.85rem">@s.FechaAlta.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                <div class="d-flex gap-1" @onclick:stopPropagation>
+                                    <a href="/socios/@s.Id" class="btn btn-sm btn-outline-primary py-0">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="/socios/@s.Id/editar" class="btn btn-sm btn-outline-secondary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => ConfirmarEliminar(s)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal de confirmación de borrado -->
+@if (socioAEliminar != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-body text-center p-4">
+                    <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-3 d-block"></i>
+                    <p class="fw-semibold mb-1">¿Eliminar socio?</p>
+                    <p class="text-muted mb-3" style="font-size:.9rem">
+                        @socioAEliminar.NombreCompleto y todos sus datos asociados
+                    </p>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => socioAEliminar = null">Cancelar</button>
+                        <button class="btn btn-danger btn-sm" @onclick="Eliminar">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "filtro")]
+    public string? FiltroQuery { get; set; }
+
+    List<Socio> socios = new();
+    bool cargando = true;
+    string busqueda = "";
+    string filtroEstado = "";
+    Socio? socioAEliminar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (FiltroQuery == "pendiente")
+            filtroEstado = nameof(EstadoPago.Pendiente);
+        await Buscar();
+    }
+
+    async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        busqueda = e.Value?.ToString() ?? string.Empty;
+        await Buscar();
+    }
+
+    async Task Buscar()
+    {
+        cargando = true;
+        EstadoPago? estado = Enum.TryParse<EstadoPago>(filtroEstado, out var e) ? e : null;
+        socios = await SocioSvc.GetTodosAsync(busqueda, estado);
+        cargando = false;
+    }
+
+    void LimpiarBusqueda() { busqueda = string.Empty; _ = Buscar(); }
+    void VerDetalle(int id) => Nav.NavigateTo($"/socios/{id}");
+    void ConfirmarEliminar(Socio s) => socioAEliminar = s;
+
+    async Task Eliminar()
+    {
+        if (socioAEliminar == null) return;
+        await SocioSvc.EliminarAsync(socioAEliminar.Id);
+        Toast.ShowSuccess($"Socio {socioAEliminar.NombreCompleto} eliminado");
+        socioAEliminar = null;
+        await Buscar();
+    }
+
+    string BadgeEstado(EstadoPago e) => e switch
+    {
+        EstadoPago.Pagado    => "badge-pagado",
+        EstadoPago.Pendiente => "badge-pendiente",
+        EstadoPago.Exento    => "badge-exento",
+        _                    => "badge-baja"
+    };
+
+    string BadgeIcon(EstadoPago e) => e switch
+    {
+        EstadoPago.Pagado    => "✓",
+        EstadoPago.Pendiente => "⏳",
+        EstadoPago.Exento    => "★",
+        _                    => "✕"
+    };
+
+    static readonly string[] colsSocios = { "Apellidos", "Nombre", "Email", "Teléfono", "Estado", "Alta", "Alumnos" };
+
+    object[][] FilasSocios() => socios.Select(s => new object[]
+    {
+        s.Apellidos, s.Nombre, s.Email ?? "", s.Telefono ?? "",
+        s.Estado.ToString(), s.FechaAlta.ToString("dd/MM/yyyy"), s.Alumnos.Count
+    }).ToArray();
+}

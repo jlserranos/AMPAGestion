@@ -1,0 +1,201 @@
+@page "/documentos"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject DocumentoService DocSvc
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Documentos · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0"><i class="bi bi-folder2-open me-2"></i>Documentos</h4>
+    <div class="d-flex gap-2">
+        <BotonesExportar Titulo="Documentos" Columnas="@colsDocs" Filas="@FilasDocs()" />
+        <a href="/documentos/nuevo" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Nuevo documento
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar documento..."
+                           value="@busqueda" @oninput="OnBusquedaInput" />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select form-select-sm" @bind="filtroTipo" @bind:after="Buscar">
+                    <option value="">— Todos los tipos —</option>
+                    @foreach (var t in Enum.GetValues<TipoDocumento>())
+                    {
+                        <option value="@t">@t</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">@documentos.Count documento@(documentos.Count != 1 ? "s" : "")</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (!documentos.Any())
+{
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-folder-x fs-1 d-block mb-2"></i>No hay documentos registrados
+    </div>
+}
+else
+{
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Título</th>
+                        <th>Tipo</th>
+                        <th>Fecha doc.</th>
+                        <th>Subido</th>
+                        <th class="text-center">Público</th>
+                        <th class="text-center">Imágenes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in documentos)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@d.Titulo</div>
+                                @if (!string.IsNullOrEmpty(d.Descripcion))
+                                {
+                                    <small class="text-muted">
+                                        @(d.Descripcion.Length > 60 ? d.Descripcion[..60] + "…" : d.Descripcion)
+                                    </small>
+                                }
+                            </td>
+                            <td><span class="badge bg-light text-dark">@d.Tipo</span></td>
+                            <td class="text-muted" style="font-size:.85rem">
+                                @(d.FechaDocumento.HasValue ? d.FechaDocumento.Value.ToString("dd/MM/yyyy") : "—")
+                            </td>
+                            <td class="text-muted" style="font-size:.85rem">@d.FechaSubida.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">
+                                @if (d.Publico)
+                                {
+                                    <span class="badge badge-pagado">Sí</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-baja">No</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <div class="d-flex gap-1 justify-content-center">
+                                    @if (!string.IsNullOrEmpty(d.Foto1Url))
+                                    {
+                                        <a href="@d.Foto1Url" target="_blank">
+                                            <img src="@d.Foto1Url" style="width:32px;height:32px;object-fit:cover;border-radius:4px" alt="img1" />
+                                        </a>
+                                    }
+                                    @if (!string.IsNullOrEmpty(d.Foto2Url))
+                                    {
+                                        <a href="@d.Foto2Url" target="_blank">
+                                            <img src="@d.Foto2Url" style="width:32px;height:32px;object-fit:cover;border-radius:4px" alt="img2" />
+                                        </a>
+                                    }
+                                    @if (string.IsNullOrEmpty(d.Foto1Url) && string.IsNullOrEmpty(d.Foto2Url))
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a href="/documentos/@d.Id/editar" class="btn btn-sm btn-outline-primary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => ConfirmarEliminar(d)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (docAEliminar != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-body text-center p-4">
+                    <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-3 d-block"></i>
+                    <p class="fw-semibold mb-1">Eliminar documento</p>
+                    <p class="text-muted mb-3" style="font-size:.9rem">@docAEliminar.Titulo</p>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => docAEliminar = null">Cancelar</button>
+                        <button class="btn btn-danger btn-sm" @onclick="Eliminar">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<Documento> documentos = new();
+    bool cargando = true;
+    string busqueda = string.Empty;
+    string filtroTipo = string.Empty;
+    Documento? docAEliminar;
+
+    protected override async Task OnInitializedAsync() => await Buscar();
+
+    async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        busqueda = e.Value?.ToString() ?? string.Empty;
+        await Buscar();
+    }
+
+    async Task Buscar()
+    {
+        cargando = true;
+        TipoDocumento? tipo = Enum.TryParse<TipoDocumento>(filtroTipo, out var t) ? t : null;
+        documentos = await DocSvc.GetTodosAsync(busqueda, tipo);
+        cargando = false;
+    }
+
+    void ConfirmarEliminar(Documento d) => docAEliminar = d;
+
+    async Task Eliminar()
+    {
+        if (docAEliminar == null) return;
+        await DocSvc.EliminarAsync(docAEliminar.Id);
+        Toast.ShowSuccess("Documento eliminado");
+        docAEliminar = null;
+        await Buscar();
+    }
+
+    static readonly string[] colsDocs = { "Título", "Tipo", "Fecha doc.", "Subido", "Público", "Archivos" };
+
+    object[][] FilasDocs() => documentos.Select(d => new object[]
+    {
+        d.Titulo, d.Tipo.ToString(),
+        d.FechaDocumento.HasValue ? d.FechaDocumento.Value.ToString("dd/MM/yyyy") : "",
+        d.FechaSubida.ToString("dd/MM/yyyy"),
+        d.Publico ? "Sí" : "No",
+        new[] { d.Foto1Url, d.Foto2Url, d.Foto3Url, d.Foto4Url, d.Foto5Url, d.Foto6Url }.Count(u => !string.IsNullOrEmpty(u))
+    }).ToArray();
+}

@@ -1,0 +1,267 @@
+@page "/subvenciones"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject SubvencionService SubSvc
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Subvenciones e ingresos · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0"><i class="bi bi-cash-coin me-2"></i>Subvenciones e ingresos</h4>
+    <div class="d-flex gap-2">
+        <BotonesExportar Titulo="Subvenciones" Columnas="@colsSub" Filas="@FilasSub()" />
+        <a href="/subvenciones/nueva" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Nueva subvención
+        </a>
+    </div>
+</div>
+
+<!-- Alertas pendientes -->
+@if (alertas.Any())
+{
+    <div class="mb-3">
+        @foreach (var a in alertas.Take(3))
+        {
+            var urgente = a.EsUrgente;
+            var vencida = a.EstaVencida;
+            <div class="alert @(vencida ? "alert-danger" : urgente ? "alert-warning" : "alert-info") py-2 mb-2 d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-bell-fill me-2"></i>
+                    <strong>@a.Concepto</strong>
+                    <span class="ms-2 text-muted" style="font-size:.85rem">
+                        — @a.EntidadTitulo ·
+                        @if (vencida)
+                        { <span>Venció hace @Math.Abs(a.DiasRestantes) días</span> }
+                        else
+                        { <span>@a.DiasRestantes días restantes (@a.FechaAlerta.ToString("dd/MM/yyyy"))</span> }
+                    </span>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary py-0"
+                        @onclick="() => MarcarGestionada(a.Id)">
+                    Gestionar
+                </button>
+            </div>
+        }
+        @if (alertas.Count > 3)
+        {
+            <small class="text-muted">Y @(alertas.Count - 3) alertas más...</small>
+        }
+    </div>
+}
+
+<!-- Filtros -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar subvención..."
+                           value="@busqueda" @oninput="OnBusquedaInput" />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select form-select-sm" @bind="filtroOrigen" @bind:after="Buscar">
+                    <option value="">— Todos los orígenes —</option>
+                    @foreach (var o in Enum.GetValues<OrigenSubvencion>())
+                    {
+                        <option value="@o">@DescOrigen(o)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">
+                    Total: <strong class="text-success text-money">
+                        @subvenciones.Where(s => s.Cobrado).Sum(s => s.Importe).ToString("C")
+                    </strong>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (!subvenciones.Any())
+{
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-cash-coin fs-1 d-block mb-2"></i>No hay subvenciones registradas
+    </div>
+}
+else
+{
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Concepto</th>
+                        <th>Origen</th>
+                        <th>Fecha</th>
+                        <th class="text-end">Importe</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Alertas</th>
+                        <th class="text-center">Archivos</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in subvenciones)
+                    {
+                        var alertasPend = s.Alertas.Count(a => a.Estado == EstadoAlerta.Pendiente);
+                        var alertasUrg  = s.Alertas.Count(a => a.Estado == EstadoAlerta.Pendiente && a.EsUrgente);
+                        var numArchivos = ContarArchivos(s);
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@s.Concepto</div>
+                                @if (!string.IsNullOrEmpty(s.Comentarios))
+                                {
+                                    <small class="text-muted">
+                                        @(s.Comentarios.Length > 60 ? s.Comentarios[..60] + "…" : s.Comentarios)
+                                    </small>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark">@s.OrigenDescripcion</span>
+                            </td>
+                            <td class="text-muted" style="font-size:.85rem">@s.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td class="text-end text-money fw-semibold text-success">
+                                @s.Importe.ToString("C")
+                            </td>
+                            <td class="text-center">
+                                @if (s.Cobrado)
+                                {
+                                    <span class="badge badge-pagado">✓ Cobrado</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-pendiente">⏳ Pendiente</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                @if (alertasPend > 0)
+                                {
+                                    <span class="badge @(alertasUrg > 0 ? "bg-danger" : "bg-warning text-dark")">
+                                        <i class="bi bi-bell-fill me-1"></i>@alertasPend
+                                    </span>
+                                }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td class="text-center">
+                                @if (numArchivos > 0)
+                                {
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-paperclip me-1"></i>@numArchivos
+                                    </span>
+                                }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a href="/subvenciones/@s.Id/editar" class="btn btn-sm btn-outline-primary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => ConfirmarEliminar(s)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="3" class="fw-semibold">Total cobrado</td>
+                        <td class="text-end text-money fw-bold text-success">
+                            @subvenciones.Where(s => s.Cobrado).Sum(s => s.Importe).ToString("C")
+                        </td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}
+
+@if (subvencionAEliminar != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-body text-center p-4">
+                    <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-3 d-block"></i>
+                    <p class="fw-semibold mb-1">Eliminar subvención</p>
+                    <p class="text-muted mb-3" style="font-size:.9rem">@subvencionAEliminar.Concepto</p>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => subvencionAEliminar = null">Cancelar</button>
+                        <button class="btn btn-danger btn-sm" @onclick="Eliminar">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<Subvencion>  subvenciones = new();
+    List<AlertaFecha> alertas      = new();
+    bool cargando   = true;
+    string busqueda = string.Empty;
+    string filtroOrigen = string.Empty;
+    Subvencion? subvencionAEliminar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        alertas = await SubSvc.GetAlertasPendientesAsync();
+        await Buscar();
+    }
+
+    async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        busqueda = e.Value?.ToString() ?? string.Empty;
+        await Buscar();
+    }
+
+    async Task Buscar()
+    {
+        cargando = true;
+        OrigenSubvencion? origen = Enum.TryParse<OrigenSubvencion>(filtroOrigen, out var o) ? o : null;
+        subvenciones = await SubSvc.GetTodasAsync(busqueda, origen);
+        cargando = false;
+    }
+
+    void ConfirmarEliminar(Subvencion s) => subvencionAEliminar = s;
+
+    async Task Eliminar()
+    {
+        if (subvencionAEliminar == null) return;
+        await SubSvc.EliminarAsync(subvencionAEliminar.Id);
+        Toast.ShowSuccess("Subvención eliminada");
+        subvencionAEliminar = null;
+        await Buscar();
+    }
+
+    async Task MarcarGestionada(int id)
+    {
+        await SubSvc.MarcarAlertaGestionadaAsync(id);
+        alertas = await SubSvc.GetAlertasPendientesAsync();
+        Toast.ShowSuccess("Alerta marcada como gestionada");
+    }
+
+    int ContarArchivos(Subvencion s) =>
+        new[] { s.Foto1Url, s.Foto2Url, s.Foto3Url, s.Foto4Url, s.Foto5Url, s.Foto6Url }
+        .Count(u => !string.IsNullOrEmpty(u));
+
+    string DescOrigen(OrigenSubvencion o) => new Subvencion { Origen = o }.OrigenDescripcion;
+
+    static readonly string[] colsSub = { "Concepto", "Origen", "Fecha", "Importe", "Estado" };
+
+    object[][] FilasSub() => subvenciones.Select(s => new object[]
+    {
+        s.Concepto, s.OrigenDescripcion, s.Fecha.ToString("dd/MM/yyyy"),
+        s.Importe.ToString("C"), s.Cobrado ? "Cobrada" : "Pendiente"
+    }).ToArray();
+}

@@ -1,0 +1,245 @@
+@page "/contabilidad/libro"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject ContabilidadService ContSvc
+
+<PageTitle>Libro de cuentas · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="/contabilidad" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h4 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Libro de cuentas</h4>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <select class="form-select form-select-sm" style="width:110px" @bind="anioSeleccionado" @bind:after="Cargar">
+            <option value="0">Todos</option>
+            @foreach (var a in aniosDisponibles)
+            {
+                <option value="@a">@a</option>
+            }
+        </select>
+        <select class="form-select form-select-sm" style="width:140px" @bind="filtroTipo" @bind:after="Cargar">
+            <option value="">Todos</option>
+            <option value="Ingreso">Solo ingresos</option>
+            <option value="Gasto">Solo gastos</option>
+        </select>
+        <BotonesExportar Titulo="@($"Libro de cuentas {anioSeleccionado}")" Columnas="@colsLibro" Filas="@FilasLibro()" />
+        <div class="input-group input-group-sm" style="width:200px">
+            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" placeholder="Buscar..."
+                   value="@busqueda" @oninput="OnBusquedaInput" />
+        </div>
+    </div>
+</div>
+
+<!-- Totales de la selección actual -->
+<div class="row g-2 mb-3">
+    <div class="col-sm-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                <span class="text-muted" style="font-size:.85rem">
+                    <i class="bi bi-arrow-down-circle text-success me-1"></i>Total ingresos
+                </span>
+                <span class="fw-bold text-success text-money">
+                    @movimientosFiltrados.Where(m => m.Tipo == TipoApunte.Ingreso).Sum(m => m.Haber).ToString("C")
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                <span class="text-muted" style="font-size:.85rem">
+                    <i class="bi bi-arrow-up-circle text-danger me-1"></i>Total gastos
+                </span>
+                <span class="fw-bold text-danger text-money">
+                    @movimientosFiltrados.Where(m => m.Tipo == TipoApunte.Gasto).Sum(m => m.Debe).ToString("C")
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                <span class="text-muted" style="font-size:.85rem">
+                    <i class="bi bi-wallet2 me-1"></i>@movimientosFiltrados.Count() apuntes
+                </span>
+                @{
+                    var saldoFiltro = movimientosFiltrados.Sum(m => m.Haber - m.Debe);
+                }
+                <span class="fw-bold text-money @(saldoFiltro >= 0 ? "text-success" : "text-danger")">
+                    @saldoFiltro.ToString("C")
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla del libro -->
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Concepto</th>
+                    <th>Detalle / Contraparte</th>
+                    <th>Ref.</th>
+                    <th class="text-end text-success">Ingreso (Haber)</th>
+                    <th class="text-end text-danger">Gasto (Debe)</th>
+                    <th class="text-end">Saldo</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (cargando)
+                {
+                    <tr><td colspan="9" class="text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                    </td></tr>
+                }
+                else if (!movimientosFiltrados.Any())
+                {
+                    <tr><td colspan="9" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-2 d-block mb-2"></i>Sin movimientos para los filtros seleccionados
+                    </td></tr>
+                }
+                else
+                {
+                    @foreach (var m in movimientosFiltrados)
+                    {
+                        <tr class="@(m.Pendiente ? "table-warning" : "")">
+                            <td style="font-size:.83rem;white-space:nowrap">
+                                @m.Fecha.ToString("dd/MM/yyyy")
+                            </td>
+                            <td>
+                                @if (m.Tipo == TipoApunte.Ingreso)
+                                {
+                                    <span class="badge badge-pagado">
+                                        <i class="bi bi-arrow-down-short"></i> Ingreso
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge @(m.Pendiente ? "badge-pendiente" : "badge-baja")">
+                                        <i class="bi bi-arrow-up-short"></i>
+                                        @(m.Pendiente ? "Pendiente" : "Gasto")
+                                    </span>
+                                }
+                            </td>
+                            <td style="max-width:200px">
+                                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                    @m.Concepto
+                                </div>
+                                @if (!string.IsNullOrEmpty(m.Categoria))
+                                {
+                                    <small class="text-muted">@m.Categoria</small>
+                                }
+                            </td>
+                            <td class="text-muted" style="font-size:.85rem;max-width:160px">
+                                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                    @m.Detalle
+                                </div>
+                            </td>
+                            <td class="text-muted" style="font-size:.83rem">@m.Referencia</td>
+                            <td class="text-end text-money fw-semibold text-success">
+                                @(m.Haber > 0 ? m.Haber.ToString("C") : "")
+                            </td>
+                            <td class="text-end text-money fw-semibold text-danger">
+                                @(m.Debe > 0 ? m.Debe.ToString("C") : "")
+                            </td>
+                            <td class="text-end text-money fw-semibold
+                                @(m.SaldoAcumulado >= 0 ? "text-success" : "text-danger")"
+                                style="white-space:nowrap">
+                                @m.SaldoAcumulado.ToString("C")
+                            </td>
+                            <td>
+                                @if (m.Origen == "Factura")
+                                {
+                                    <a href="/facturas/@m.OrigenId/editar"
+                                       class="btn btn-sm btn-outline-secondary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <a href="/socios/@m.OrigenId"
+                                       class="btn btn-sm btn-outline-secondary py-0">
+                                        <i class="bi bi-person"></i>
+                                    </a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="text-muted mt-2" style="font-size:.8rem">
+    <i class="bi bi-info-circle me-1"></i>
+    Los ingresos se contabilizan automáticamente al registrar una cuota.
+    Los gastos se contabilizan al crear la factura (pendiente) y se marcan como pagados al liquidarla.
+    <span class="badge badge-pendiente ms-2">pendiente</span> = factura creada pero no pagada aún.
+</div>
+
+@code {
+    bool cargando = true;
+    int anioSeleccionado = DateTime.Today.Year;
+    List<int> aniosDisponibles = new();
+    List<ApunteContable> todosMovimientos = new();
+    string busqueda = string.Empty;
+    string filtroTipo = string.Empty;
+
+    IEnumerable<ApunteContable> movimientosFiltrados => todosMovimientos
+        .Where(m =>
+            (string.IsNullOrEmpty(filtroTipo) || m.Tipo.ToString() == filtroTipo) &&
+            (string.IsNullOrEmpty(busqueda) ||
+             m.Concepto.Contains(busqueda, StringComparison.OrdinalIgnoreCase) ||
+             m.Detalle.Contains(busqueda, StringComparison.OrdinalIgnoreCase) ||
+             m.Referencia.Contains(busqueda, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        aniosDisponibles = await ContSvc.GetAniosDisponiblesAsync();
+        if (!aniosDisponibles.Contains(anioSeleccionado))
+        {
+            anioSeleccionado = aniosDisponibles.Any()
+                ? aniosDisponibles.First()
+                : DateTime.Today.Year;
+        }
+        if (!aniosDisponibles.Contains(anioSeleccionado))
+            aniosDisponibles.Insert(0, anioSeleccionado);
+        await Cargar();
+    }
+
+    async Task Cargar()
+    {
+        cargando = true;
+        int? anio = anioSeleccionado == 0 ? null : anioSeleccionado;
+        todosMovimientos = await ContSvc.GetLibroAsync(anio);
+        cargando = false;
+    }
+
+    async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        busqueda = e.Value?.ToString() ?? string.Empty;
+        await Task.CompletedTask;
+    }
+
+    static readonly string[] colsLibro = { "Fecha", "Tipo", "Concepto", "Detalle", "Ref.", "Ingreso", "Gasto", "Saldo" };
+
+    object[][] FilasLibro() => movimientosFiltrados.Select(m => new object[]
+    {
+        m.Fecha.ToString("dd/MM/yyyy"),
+        m.Tipo == TipoApunte.Ingreso ? "Ingreso" : (m.Pendiente ? "Pendiente" : "Gasto"),
+        m.Concepto, m.Detalle, m.Referencia,
+        m.Haber > 0 ? m.Haber.ToString("C") : "",
+        m.Debe > 0  ? m.Debe.ToString("C")  : "",
+        m.SaldoAcumulado.ToString("C")
+    }).ToArray();
+}

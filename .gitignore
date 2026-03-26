@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+*.suo
+*.db
+*.db-shm
+*.db-wal
+.vs/
+Properties/launchSettings.json
+appsettings.Development.json

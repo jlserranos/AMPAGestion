@@ -1,0 +1,243 @@
+@page "/socios/{Id:int}"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject SocioService SocioSvc
+@inject ContabilidadService ContSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Ficha socio · AMPA Gestión</PageTitle>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (socio == null)
+{
+    <div class="text-center py-5 text-muted">Socio no encontrado.</div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <a href="/socios" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+            <div>
+                <h4 class="fw-bold mb-0">@socio.NombreCompleto</h4>
+                <span class="badge @BadgeEstado(socio.Estado) px-2 py-1 mt-1">@socio.Estado</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/socios/@socio.Id/editar" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil me-1"></i>Editar
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Datos personales -->
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">Datos del socio</h6>
+                    <dl class="row mb-0">
+                        <dt class="col-5 fw-normal text-muted">DNI</dt>
+                        <dd class="col-7">@(socio.DNI ?? "—")</dd>
+                        <dt class="col-5 fw-normal text-muted">Teléfono</dt>
+                        <dd class="col-7">@(socio.Telefono ?? "—")</dd>
+                        <dt class="col-5 fw-normal text-muted">Email</dt>
+                        <dd class="col-7" style="word-break:break-all">@(socio.Email ?? "—")</dd>
+                        <dt class="col-5 fw-normal text-muted">Dirección</dt>
+                        <dd class="col-7">@(socio.Direccion ?? "—")</dd>
+                        <dt class="col-5 fw-normal text-muted">Alta</dt>
+                        <dd class="col-7">@socio.FechaAlta.ToString("dd/MM/yyyy")</dd>
+                        @if (!string.IsNullOrEmpty(socio.Observaciones))
+                        {
+                            <dt class="col-5 fw-normal text-muted">Observaciones</dt>
+                            <dd class="col-7">@socio.Observaciones</dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alumnos asociados -->
+        <div class="col-md-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-semibold mb-0 text-muted text-uppercase" style="font-size:.75rem">
+                            Alumnos (@socio.Alumnos.Count)
+                        </h6>
+                        <a href="/alumnos/nuevo?socioId=@socio.Id" class="btn btn-outline-primary btn-sm py-0">
+                            <i class="bi bi-plus"></i> Añadir alumno
+                        </a>
+                    </div>
+                    @if (!socio.Alumnos.Any())
+                    {
+                        <p class="text-muted text-center py-3">Sin alumnos registrados</p>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var a in socio.Alumnos.Where(a => a.Activo))
+                            {
+                                <div class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div class="fw-semibold">@a.NombreCompleto</div>
+                                            <small class="text-muted">@a.CursoDescripcion @(!string.IsNullOrEmpty(a.Grupo) ? $"· Grupo {a.Grupo}" : "")</small>
+                                        </div>
+                                        <a href="/alumnos/@a.Id/editar" class="btn btn-sm btn-outline-secondary py-0">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Historial de cuotas -->
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-semibold mb-0 text-muted text-uppercase" style="font-size:.75rem">
+                            Pagos registrados (@socio.Cuotas.Count)
+                        </h6>
+                        <button class="btn btn-outline-success btn-sm py-0" @onclick="() => mostrarFormCuota = true">
+                            <i class="bi bi-plus"></i> Registrar pago
+                        </button>
+                    </div>
+
+                    @if (mostrarFormCuota)
+                    {
+                        <div class="border rounded p-3 mb-3 bg-light">
+                            <h6 class="mb-3">Nuevo pago</h6>
+                            <EditForm Model="nuevaCuota" OnValidSubmit="GuardarCuota">
+                                <DataAnnotationsValidator />
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Concepto</label>
+                                        <InputText @bind-Value="nuevaCuota.Concepto" class="form-control form-control-sm" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">Importe €</label>
+                                        <InputNumber @bind-Value="nuevaCuota.Importe" class="form-control form-control-sm" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">Método</label>
+                                        <InputSelect @bind-Value="nuevaCuota.Metodo" class="form-select form-select-sm">
+                                            @foreach (var m in Enum.GetValues<MetodoPago>())
+                                            {
+                                                <option value="@m">@m</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">Referencia</label>
+                                        <InputText @bind-Value="nuevaCuota.Referencia" class="form-control form-control-sm" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">Fecha</label>
+                                        <InputDate @bind-Value="nuevaCuota.Fecha" class="form-control form-control-sm" />
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2 mt-2">
+                                    <button type="submit" class="btn btn-success btn-sm">Guardar</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                                            @onclick="() => mostrarFormCuota = false">Cancelar</button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    }
+
+                    @if (!socio.Cuotas.Any())
+                    {
+                        <p class="text-muted text-center py-3">Sin pagos registrados</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Concepto</th>
+                                        <th>Método</th>
+                                        <th>Referencia</th>
+                                        <th class="text-end">Importe</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var c in socio.Cuotas.OrderByDescending(x => x.Fecha))
+                                    {
+                                        <tr>
+                                            <td>@c.Fecha.ToString("dd/MM/yyyy")</td>
+                                            <td>@c.Concepto</td>
+                                            <td><span class="badge bg-light text-dark">@c.Metodo</span></td>
+                                            <td class="text-muted">@c.Referencia</td>
+                                            <td class="text-end fw-semibold text-success text-money">@c.Importe.ToString("C")</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-danger py-0"
+                                                        @onclick="() => EliminarCuota(c.Id)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    Socio? socio;
+    bool cargando = true;
+    bool mostrarFormCuota = false;
+    Cuota nuevaCuota = new();
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    async Task Cargar()
+    {
+        cargando = true;
+        socio = await SocioSvc.GetByIdAsync(Id);
+        nuevaCuota = new Cuota { SocioId = Id, Fecha = DateTime.Today, Importe = 25m };
+        cargando = false;
+    }
+
+    async Task GuardarCuota()
+    {
+        nuevaCuota.SocioId = Id;
+        await ContSvc.RegistrarCuotaAsync(nuevaCuota);
+        Toast.ShowSuccess("Pago registrado");
+        mostrarFormCuota = false;
+        await Cargar();
+    }
+
+    async Task EliminarCuota(int cuotaId)
+    {
+        await ContSvc.EliminarCuotaAsync(cuotaId);
+        Toast.ShowInfo("Pago eliminado");
+        await Cargar();
+    }
+
+    string BadgeEstado(EstadoPago e) => e switch
+    {
+        EstadoPago.Pagado    => "badge-pagado",
+        EstadoPago.Pendiente => "badge-pendiente",
+        EstadoPago.Exento    => "badge-exento",
+        _                    => "badge-baja"
+    };
+}

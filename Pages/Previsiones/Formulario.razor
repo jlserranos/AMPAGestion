@@ -1,0 +1,193 @@
+@page "/previsiones/nueva"
+@page "/previsiones/{Id:int}/editar"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject PrevisionService PrevSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>@(Id.HasValue ? "Editar previsión" : "Nueva previsión") · AMPA Gestión</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/previsiones" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="fw-bold mb-0">@(Id.HasValue ? "Editar previsión" : "Nueva previsión")</h4>
+</div>
+
+<EditForm Model="prev" OnValidSubmit="Guardar">
+    <DataAnnotationsValidator />
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card card-form shadow-sm mb-3">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">Datos de la previsión</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Concepto <span class="text-danger">*</span></label>
+                            <InputText @bind-Value="prev.Concepto" class="form-control"
+                                       placeholder="Ej: Cuotas de socios, Actividades, Seguro..." />
+                            <ValidationMessage For="() => prev.Concepto" class="text-danger small" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Año</label>
+                            <InputNumber @bind-Value="prev.Anio" class="form-control" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tipo</label>
+                            <InputSelect @bind-Value="prev.Tipo" class="form-select">
+                                <option value="@TipoPrevision.Ingreso">Ingreso</option>
+                                <option value="@TipoPrevision.Gasto">Gasto</option>
+                            </InputSelect>
+                        </div>
+                        @if (prev.Tipo == TipoPrevision.Gasto)
+                        {
+                            <div class="col-md-4">
+                                <label class="form-label">Categoría de gasto</label>
+                                <select class="form-select" @bind="categoriaStr">
+                                    <option value="">— Sin categoría —</option>
+                                    @foreach (var c in Enum.GetValues<CategoriaGasto>())
+                                    { <option value="@c">@c</option> }
+                                </select>
+                            </div>
+                        }
+                        <div class="col-md-4">
+                            <label class="form-label">Importe total anual previsto €</label>
+                            <InputNumber @bind-Value="prev.ImportePrevisto" class="form-control" />
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-secondary w-100"
+                                    @onclick="DistribuirUniforme">
+                                <i class="bi bi-distribute-vertical me-1"></i>Distribuir uniformemente
+                            </button>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputText @bind-Value="prev.Observaciones" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Distribución mensual -->
+            <div class="card card-form shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">
+                        Distribución mensual <small class="text-muted fw-normal">(opcional — dejar en 0 si no se usa)</small>
+                    </h6>
+                    <div class="row g-2">
+                        @for (int _m = 1; _m <= 12; _m++)
+                        {
+                            var mesIdx = _m;
+                            <div class="col-md-2 col-sm-4 col-6">
+                                <label class="form-label" style="font-size:.8rem">@NombreMes(mesIdx)</label>
+                                <input type="number" class="form-control form-control-sm text-money"
+                                       step="0.01" min="0"
+                                       value="@meses[mesIdx - 1].ToString("F2")"
+                                       @onchange="e => SetMes(mesIdx, e.Value?.ToString())" />
+                            </div>
+                        }
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 pt-2 border-top">
+                        <small class="text-muted">Total distribuido:</small>
+                        @{ var totalDist = meses.Sum(); }
+                        <small class="fw-semibold text-money @(totalDist == prev.ImportePrevisto ? "text-success" : "text-warning")">
+                            @totalDist.ToString("C")
+                            @if (totalDist != prev.ImportePrevisto && prev.ImportePrevisto > 0)
+                            { <span class="ms-2 text-warning">(previsto: @prev.ImportePrevisto.ToString("C"))</span> }
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary" disabled="@guardando">
+                    @if (guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="bi bi-floppy me-1"></i>@(Id.HasValue ? "Guardar cambios" : "Crear previsión")
+                </button>
+                <a href="/previsiones" class="btn btn-outline-secondary">Cancelar</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    [SupplyParameterFromQuery] public int? Anio { get; set; }
+
+    Prevision prev = new();
+    string categoriaStr = string.Empty;
+    bool guardando = false;
+
+    // Array de 12 posiciones como backing para los inputs mensuales
+    // (InputNumber no admite ValueExpression con llamadas a métodos)
+    decimal[] meses = new decimal[12];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existente = await PrevSvc.GetByIdAsync(Id.Value);
+            if (existente != null)
+            {
+                prev = existente;
+                categoriaStr = prev.Categoria?.ToString() ?? string.Empty;
+            }
+            else Nav.NavigateTo("/previsiones");
+        }
+        else if (Anio.HasValue)
+        {
+            prev.Anio = Anio.Value;
+        }
+        // Cargar valores del modelo en el array
+        SincronizarMesesDesdeModelo();
+    }
+
+    void SincronizarMesesDesdeModelo()
+    {
+        for (int m = 1; m <= 12; m++)
+            meses[m - 1] = prev.GetMes(m);
+    }
+
+    void SincronizarMesesAlModelo()
+    {
+        for (int m = 1; m <= 12; m++)
+            prev.SetMes(m, meses[m - 1]);
+    }
+
+    void SetMes(int mes, string? valor)
+    {
+        if (decimal.TryParse(valor,
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            meses[mes - 1] = v;
+            StateHasChanged();
+        }
+    }
+
+    void DistribuirUniforme()
+    {
+        var mensual = Math.Round(prev.ImportePrevisto / 12, 2);
+        for (int m = 0; m < 12; m++)
+            meses[m] = mensual;
+        StateHasChanged();
+    }
+
+    string NombreMes(int m) => new DateTime(2000, m, 1).ToString("MMM");
+
+    async Task Guardar()
+    {
+        guardando = true;
+        // Sincronizar array → modelo antes de guardar
+        SincronizarMesesAlModelo();
+        prev.Categoria = Enum.TryParse<CategoriaGasto>(categoriaStr, out var c) ? c : null;
+        try
+        {
+            if (Id.HasValue) { await PrevSvc.ActualizarAsync(prev); Toast.ShowSuccess("Previsión actualizada"); }
+            else             { await PrevSvc.CrearAsync(prev);      Toast.ShowSuccess("Previsión creada"); }
+            Nav.NavigateTo("/previsiones");
+        }
+        catch (Exception ex) { Toast.ShowError($"Error: {ex.Message}"); guardando = false; }
+    }
+}
