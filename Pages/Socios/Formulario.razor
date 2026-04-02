@@ -1,0 +1,156 @@
+@page "/socios/nuevo"
+@page "/socios/{Id:int}/editar"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject SocioService SocioSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>@(Id.HasValue ? "Editar socio" : "Nuevo socio") · AMPA Gestión</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/socios" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h4 class="fw-bold mb-0">@(Id.HasValue ? "Editar socio" : "Nuevo socio")</h4>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <EditForm Model="socio" OnValidSubmit="Guardar">
+        <DataAnnotationsValidator />
+
+        <div class="row g-3">
+            <!-- Datos personales -->
+            <div class="col-lg-8">
+                <div class="card card-form shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem;letter-spacing:.05em">
+                            Datos personales
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Apellidos <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="socio.Apellidos" class="form-control" placeholder="García López" />
+                                <ValidationMessage For="() => socio.Apellidos" class="text-danger small" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Nombre <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="socio.Nombre" class="form-control" placeholder="Ana" />
+                                <ValidationMessage For="() => socio.Nombre" class="text-danger small" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">DNI / NIE</label>
+                                <InputText @bind-Value="socio.DNI" class="form-control" placeholder="12345678A" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Teléfono</label>
+                                <InputText @bind-Value="socio.Telefono" class="form-control" placeholder="600 111 222" />
+                                <ValidationMessage For="() => socio.Telefono" class="text-danger small" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Email</label>
+                                <InputText @bind-Value="socio.Email" class="form-control" placeholder="ana@ejemplo.com" />
+                                <ValidationMessage For="() => socio.Email" class="text-danger small" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Dirección</label>
+                                <InputText @bind-Value="socio.Direccion" class="form-control" placeholder="Calle Mayor 12, 3º A" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Observaciones</label>
+                                <InputTextArea @bind-Value="socio.Observaciones" class="form-control" rows="2" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Estado y fecha -->
+            <div class="col-lg-4">
+                <div class="card card-form shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem;letter-spacing:.05em">
+                            Estado
+                        </h6>
+                        <div class="mb-3">
+                            <label class="form-label">Estado de pago</label>
+                            <InputSelect @bind-Value="socio.Estado" class="form-select">
+                                @foreach (var e in Enum.GetValues<EstadoPago>())
+                                {
+                                    <option value="@e">@e</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Fecha de alta</label>
+                            <InputDate @bind-Value="socio.FechaAlta" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones -->
+                <div class="d-grid gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary" disabled="@guardando">
+                        @if (guardando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi bi-floppy me-1"></i>
+                        @(Id.HasValue ? "Guardar cambios" : "Crear socio")
+                    </button>
+                    <a href="/socios" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    Socio socio = new();
+    bool cargando = true;
+    bool guardando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existente = await SocioSvc.GetByIdAsync(Id.Value);
+            if (existente != null)
+                socio = existente;
+            else
+                Nav.NavigateTo("/socios");
+        }
+        cargando = false;
+    }
+
+    async Task Guardar()
+    {
+        guardando = true;
+        try
+        {
+            if (Id.HasValue)
+            {
+                await SocioSvc.ActualizarAsync(socio);
+                Toast.ShowSuccess("Socio actualizado correctamente");
+            }
+            else
+            {
+                await SocioSvc.CrearAsync(socio);
+                Toast.ShowSuccess("Socio creado correctamente");
+            }
+            Nav.NavigateTo("/socios");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Error: {ex.Message}");
+            guardando = false;
+        }
+    }
+}

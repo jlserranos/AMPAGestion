@@ -1,0 +1,70 @@
+@using AMPAGestion.Models
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h6 class="fw-semibold mb-0 text-muted text-uppercase" style="font-size:.75rem">
+        <i class="bi bi-bell me-1"></i>Alertas de plazos
+    </h6>
+    <button type="button" class="btn btn-outline-warning btn-sm py-0" @onclick="Anadir">
+        <i class="bi bi-plus me-1"></i>Añadir alerta
+    </button>
+</div>
+
+@if (!Alertas.Any())
+{
+    <p class="text-muted text-center py-2" style="font-size:.85rem">Sin alertas configuradas</p>
+}
+
+@for (int i = 0; i < Alertas.Count; i++)
+{
+    var ai = i;
+    var alerta = Alertas[ai];
+    <div class="border rounded p-3 mb-2 position-relative
+        @(alerta.EstaVencida ? "border-danger bg-danger bg-opacity-10" :
+          alerta.EsUrgente   ? "border-warning bg-warning bg-opacity-10" : "")">
+        <button type="button" class="btn btn-sm btn-outline-danger position-absolute py-0 px-1"
+                style="top:6px;right:6px" @onclick="() => Eliminar(ai)">
+            <i class="bi bi-x"></i>
+        </button>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label" style="font-size:.8rem">Concepto *</label>
+                <InputText @bind-Value="alerta.Concepto" class="form-control form-control-sm"
+                           placeholder="Ej: Fecha límite inscripción, Renovación seguro..." />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" style="font-size:.8rem">Fecha límite</label>
+                <InputDate @bind-Value="alerta.FechaAlerta" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" style="font-size:.8rem">Estado</label>
+                <InputSelect @bind-Value="alerta.Estado" class="form-select form-select-sm">
+                    @foreach (var e in Enum.GetValues<EstadoAlerta>())
+                    { <option value="@e">@e</option> }
+                </InputSelect>
+            </div>
+            <div class="col-md-2 d-flex align-items-center pb-1">
+                @if (alerta.Estado == EstadoAlerta.Pendiente)
+                {
+                    @if (alerta.EstaVencida)
+                    { <span class="badge bg-danger w-100">VENCIDA</span> }
+                    else if (alerta.EsUrgente)
+                    { <span class="badge bg-warning text-dark w-100">@alerta.DiasRestantes días</span> }
+                    else
+                    { <small class="text-muted">@alerta.DiasRestantes días</small> }
+                }
+            </div>
+            <div class="col-12">
+                <label class="form-label" style="font-size:.8rem">Descripción</label>
+                <InputText @bind-Value="alerta.Descripcion" class="form-control form-control-sm"
+                           placeholder="Detalle adicional..." />
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public List<AlertaFecha> Alertas { get; set; } = new();
+
+    void Anadir() => Alertas.Add(new AlertaFecha { FechaAlerta = DateTime.Today.AddDays(30) });
+    void Eliminar(int i) => Alertas.RemoveAt(i);
+}

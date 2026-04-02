@@ -1,0 +1,47 @@
+@using AMPAGestion.Services
+@inject ExportService ExportSvc
+
+<div class="d-flex gap-1 @CssClass">
+    <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-secondary"
+                title="Imprimir" @onclick="Imprimir" disabled="@(!HayDatos)">
+            <i class="bi bi-printer"></i>
+            @if (!string.IsNullOrEmpty(Etiqueta))
+            { <span class="ms-1 d-none d-md-inline">@Etiqueta</span> }
+        </button>
+        <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split"
+                data-bs-toggle="dropdown" disabled="@(!HayDatos)">
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+                <button class="dropdown-item" @onclick="Imprimir">
+                    <i class="bi bi-printer me-2"></i>Imprimir
+                </button>
+            </li>
+            <li>
+                <button class="dropdown-item" @onclick="ExportarPDF">
+                    <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Exportar PDF
+                </button>
+            </li>
+            <li>
+                <button class="dropdown-item" @onclick="ExportarExcel">
+                    <i class="bi bi-file-earmark-excel me-2 text-success"></i>Exportar Excel
+                </button>
+            </li>
+        </ul>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Titulo    { get; set; } = "Listado";
+    [Parameter] public string[] Columnas { get; set; } = Array.Empty<string>();
+    [Parameter] public object[][] Filas  { get; set; } = Array.Empty<object[]>();
+    [Parameter] public string CssClass  { get; set; } = "";
+    [Parameter] public string Etiqueta  { get; set; } = "";
+
+    bool HayDatos => Filas.Length > 0;
+
+    async Task Imprimir()     => await ExportSvc.ImprimirAsync(Titulo, Columnas, Filas);
+    async Task ExportarPDF()  => await ExportSvc.ExportarPDFAsync(Titulo, Columnas, Filas);
+    async Task ExportarExcel()=> await ExportSvc.ExportarExcelAsync(Titulo, Columnas, Filas);
+}

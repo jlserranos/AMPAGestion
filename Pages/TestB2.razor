@@ -1,0 +1,46 @@
+@page "/test-b2"
+@using AMPAGestion.Services
+@inject IConfiguration Config
+@inject ImagenService ImagenSvc
+
+<h4>Test Backblaze B2</h4>
+
+<button class="btn btn-primary" @onclick="Probar">Probar conexión</button>
+
+@if (!string.IsNullOrEmpty(resultado))
+{
+    <pre class="mt-3 p-3 bg-light border rounded">@resultado</pre>
+}
+
+@code {
+    string resultado = "";
+
+    async Task Probar()
+    {
+        resultado = "Probando...\n";
+
+        // Mostrar config leída
+        resultado += $"KeyId:     {Config["B2:KeyId"]}\n";
+        resultado += $"AppKey:    {Config["B2:AppKey"]}\n";
+        resultado += $"AppKeyLen: {Config["B2:AppKey"]?.Length} chars\n";
+        resultado += $"Bucket:    {Config["B2:Bucket"]}\n";
+        resultado += $"Endpoint:  {Config["B2:Endpoint"]}\n";
+        resultado += $"PublicUrl: {Config["B2:PublicUrl"]}\n\n";
+
+        // Intentar subir un archivo de prueba pequeño
+        try
+        {
+            var contenido = System.Text.Encoding.UTF8.GetBytes("test-ampa-gestion");
+            using var stream = new MemoryStream(contenido);
+            var url = await ImagenSvc.SubirImagenAsync(stream, "test.txt", "ampa/test");
+            if (url != null)
+                resultado += $"✅ ÉXITO - URL: {url}";
+            else
+                resultado += "❌ ERROR - SubirImagenAsync devolvió null. Mira la consola de VS para el error [B2].";
+        }
+        catch (Exception ex)
+        {
+            resultado += $"❌ EXCEPCIÓN: {ex.GetType().Name}\n{ex.Message}";
+        }
+    }
+}

@@ -1,0 +1,305 @@
+@page "/contabilidad"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject ContabilidadService ContSvc
+@inject NavigationManager Nav
+
+<PageTitle>Contabilidad · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0"><i class="bi bi-bar-chart-line me-2"></i>Contabilidad</h4>
+    <div class="d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm" style="width:110px" @bind="anioSeleccionado" @bind:after="Cargar">
+            @foreach (var a in aniosDisponibles)
+            {
+                <option value="@a">@a</option>
+            }
+        </select>
+        <BotonesExportar Titulo="@($"Contabilidad {anioSeleccionado}")" Columnas="@colsCont" Filas="@FilasCont()" />
+        <a href="/contabilidad/libro" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-journal-text me-1"></i>Libro de cuentas
+        </a>
+        <a href="/facturas/nueva" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-receipt me-1"></i>Nueva factura
+        </a>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (resumen != null)
+{
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted mb-1" style="font-size:.82rem">
+                        <i class="bi bi-arrow-down-circle-fill text-success me-1"></i>Ingresos @anioSeleccionado
+                    </div>
+                    <div class="fw-bold text-success text-money" style="font-size:1.6rem">
+                        @resumen.TotalIngresos.ToString("C")
+                    </div>
+                    <small class="text-muted">@resumen.NumCuotas cuotas cobradas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted mb-1" style="font-size:.82rem">
+                        <i class="bi bi-arrow-up-circle-fill text-danger me-1"></i>Gastos pagados
+                    </div>
+                    <div class="fw-bold text-danger text-money" style="font-size:1.6rem">
+                        @resumen.TotalGastos.ToString("C")
+                    </div>
+                    <small class="text-muted">@resumen.NumFacturas facturas · @resumen.FacturasPendientes pendientes</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted mb-1" style="font-size:.82rem">
+                        <i class="bi bi-clock text-warning me-1"></i>Gastos pendientes
+                    </div>
+                    <div class="fw-bold text-warning text-money" style="font-size:1.6rem">
+                        @resumen.GastosPendientes.ToString("C")
+                    </div>
+                    <small class="text-muted">facturas sin pagar</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-start border-4 @(resumen.SaldoAcumulado >= 0 ? "border-success" : "border-danger") shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted mb-1" style="font-size:.82rem">
+                        <i class="bi bi-bank me-1"></i>Saldo acumulado total
+                    </div>
+                    <div class="fw-bold text-money @(resumen.SaldoAcumulado >= 0 ? "text-success" : "text-danger")"
+                         style="font-size:1.6rem">
+                        @resumen.SaldoAcumulado.ToString("C")
+                    </div>
+                    <small class="text-muted">
+                        Este año: <span class="@(resumen.Saldo >= 0 ? "text-success" : "text-danger") fw-semibold">
+                            @resumen.Saldo.ToString("C")
+                        </span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <!-- Tabla mensual -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3">
+                        <i class="bi bi-calendar-month me-2 text-primary"></i>Movimientos mensuales @anioSeleccionado
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Mes</th>
+                                    <th class="text-end">Ingresos</th>
+                                    <th class="text-end">Gastos</th>
+                                    <th class="text-end">Resultado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var m in resumen.MovimientosMensuales)
+                                {
+                                    var resultado = m.Ingresos - m.Gastos;
+                                    var tieneMovimiento = m.Ingresos > 0 || m.Gastos > 0;
+                                    <tr class="@(!tieneMovimiento ? "text-muted" : "")">
+                                        <td class="text-capitalize">@m.NombreMes</td>
+                                        <td class="text-end text-money @(m.Ingresos > 0 ? "text-success" : "")">
+                                            @(m.Ingresos > 0 ? m.Ingresos.ToString("C") : "—")
+                                        </td>
+                                        <td class="text-end text-money @(m.Gastos > 0 ? "text-danger" : "")">
+                                            @(m.Gastos > 0 ? m.Gastos.ToString("C") : "—")
+                                        </td>
+                                        <td class="text-end text-money fw-semibold
+                                            @(resultado > 0 ? "text-success" : resultado < 0 ? "text-danger" : "")">
+                                            @(tieneMovimiento ? resultado.ToString("C") : "—")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td>Total</td>
+                                    <td class="text-end text-money text-success">@resumen.TotalIngresos.ToString("C")</td>
+                                    <td class="text-end text-money text-danger">@resumen.TotalGastos.ToString("C")</td>
+                                    <td class="text-end text-money @(resumen.Saldo >= 0 ? "text-success" : "text-danger")">
+                                        @resumen.Saldo.ToString("C")
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gastos por categoría -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3">
+                        <i class="bi bi-pie-chart me-2 text-primary"></i>Gastos por categoría
+                    </h6>
+                    @if (!resumen.GastosPorCategoria.Any())
+                    {
+                        <p class="text-muted text-center py-4">Sin gastos registrados</p>
+                    }
+                    else
+                    {
+                        var maxGasto = resumen.GastosPorCategoria.Max(g => g.Total);
+                        @foreach (var g in resumen.GastosPorCategoria)
+                        {
+                            var pctBarra = maxGasto > 0 ? (double)g.Total / (double)maxGasto * 100 : 0;
+                            var pctTotal = resumen.TotalGastos > 0
+                                ? (double)g.Total / (double)resumen.TotalGastos * 100 : 0;
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1" style="font-size:.82rem">
+                                    <span>
+                                        @g.Categoria
+                                        <small class="text-muted">(@g.Cantidad)</small>
+                                    </span>
+                                    <span class="text-money">
+                                        @g.Total.ToString("C")
+                                        <small class="text-muted ms-1">@pctTotal.ToString("F0")%</small>
+                                    </span>
+                                </div>
+                                <div class="progress" style="height:8px;border-radius:4px">
+                                    <div class="progress-bar bg-danger" style="width:@(((double)g.Pagado/(double)g.Total*100).ToString("F0"))%"></div>
+                                    <div class="progress-bar bg-warning" style="width:@(((double)(g.Total-g.Pagado)/(double)g.Total*100).ToString("F0"))%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between mt-1" style="font-size:.75rem">
+                                    <span class="text-danger">Pagado: @g.Pagado.ToString("C")</span>
+                                    @if (g.Total - g.Pagado > 0)
+                                    {
+                                        <span class="text-warning">Pendiente: @((g.Total - g.Pagado).ToString("C"))</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        <div class="mt-2 pt-2 border-top" style="font-size:.8rem">
+                            <span class="me-3"><span class="badge bg-danger">&nbsp;</span> Pagado</span>
+                            <span><span class="badge bg-warning">&nbsp;</span> Pendiente</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Últimos movimientos -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-semibold mb-0">
+                    <i class="bi bi-list-ul me-2 text-primary"></i>Últimos movimientos
+                </h6>
+                <a href="/contabilidad/libro" class="btn btn-sm btn-outline-secondary">
+                    Ver libro completo <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+            @if (!ultimosMovimientos.Any())
+            {
+                <p class="text-muted text-center py-3">Sin movimientos</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Concepto</th>
+                                <th>Detalle</th>
+                                <th class="text-end text-success">Ingreso</th>
+                                <th class="text-end text-danger">Gasto</th>
+                                <th class="text-end">Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var m in ultimosMovimientos)
+                            {
+                                <tr>
+                                    <td style="font-size:.85rem">@m.Fecha.ToString("dd/MM/yyyy")</td>
+                                    <td>
+                                        @m.Concepto
+                                        @if (m.Pendiente)
+                                        {
+                                            <span class="badge badge-pendiente ms-1">pendiente</span>
+                                        }
+                                    </td>
+                                    <td class="text-muted" style="font-size:.85rem">@m.Detalle</td>
+                                    <td class="text-end text-money text-success">
+                                        @(m.Haber > 0 ? m.Haber.ToString("C") : "")
+                                    </td>
+                                    <td class="text-end text-money text-danger">
+                                        @(m.Debe > 0 ? m.Debe.ToString("C") : "")
+                                    </td>
+                                    <td class="text-end text-money fw-semibold @(m.SaldoAcumulado >= 0 ? "text-success" : "text-danger")">
+                                        @m.SaldoAcumulado.ToString("C")
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    bool cargando = true;
+    int anioSeleccionado = DateTime.Today.Year;
+    List<int> aniosDisponibles = new();
+    ResumenContable? resumen;
+    List<ApunteContable> ultimosMovimientos = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        aniosDisponibles = await ContSvc.GetAniosDisponiblesAsync();
+        if (!aniosDisponibles.Contains(anioSeleccionado))
+        {
+            // Si el año actual no tiene datos, usar el más reciente que sí tenga
+            anioSeleccionado = aniosDisponibles.Any()
+                ? aniosDisponibles.First()
+                : DateTime.Today.Year;
+        }
+        if (!aniosDisponibles.Contains(anioSeleccionado))
+            aniosDisponibles.Insert(0, anioSeleccionado);
+        await Cargar();
+    }
+
+    async Task Cargar()
+    {
+        cargando = true;
+        resumen = await ContSvc.GetResumenAsync(anioSeleccionado);
+        var libro = await ContSvc.GetLibroAsync(anioSeleccionado);
+        ultimosMovimientos = libro.Take(10).ToList();
+        cargando = false;
+    }
+
+    static readonly string[] colsCont = { "Fecha", "Tipo", "Concepto", "Detalle", "Ingreso", "Gasto", "Saldo" };
+
+    object[][] FilasCont() => ultimosMovimientos.Select(m => new object[]
+    {
+        m.Fecha.ToString("dd/MM/yyyy"),
+        m.Tipo == TipoApunte.Ingreso ? "Ingreso" : (m.Pendiente ? "Pendiente" : "Gasto"),
+        m.Concepto, m.Detalle,
+        m.Haber > 0 ? m.Haber.ToString("C") : "",
+        m.Debe  > 0 ? m.Debe.ToString("C")  : "",
+        m.SaldoAcumulado.ToString("C")
+    }).ToArray();
+}
