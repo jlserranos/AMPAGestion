@@ -1,0 +1,268 @@
+@page "/previsiones/comparativa"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject PrevisionService PrevSvc
+
+<PageTitle>Comparativa previsto vs real · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="/previsiones" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+        <h4 class="fw-bold mb-0"><i class="bi bi-bar-chart-steps me-2"></i>Previsto vs Real @anio</h4>
+    </div>
+    <BotonesExportar Titulo="@($"Comparativa previsto vs real {anio}")" Columnas="@colsComp" Filas="@FilasComp()" />
+    <select class="form-select form-select-sm" style="width:110px" @bind="anio" @bind:after="Cargar">
+        @for (int a = DateTime.Today.Year + 1; a >= DateTime.Today.Year - 3; a--)
+        { <option value="@a">@a</option> }
+    </select>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (comp != null)
+{
+    <!-- KPIs comparativos -->
+    <div class="row g-3 mb-4">
+        @foreach (var kpi in new[]
+        {
+            ("Ingresos previstos",  comp.PrevIngresos, "text-success",  "bi-arrow-down-circle"),
+            ("Ingresos reales",     comp.RealIngresos, "text-success",  "bi-arrow-down-circle-fill"),
+            ("Gastos previstos",    comp.PrevGastos,   "text-danger",   "bi-arrow-up-circle"),
+            ("Gastos reales",       comp.RealGastos,   "text-danger",   "bi-arrow-up-circle-fill"),
+        })
+        {
+            <div class="col-sm-6 col-xl-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="text-muted mb-1" style="font-size:.82rem">
+                            <i class="bi @kpi.Item4 me-1 @kpi.Item3"></i>@kpi.Item1
+                        </div>
+                        <div class="fw-bold text-money fs-4 @kpi.Item3">@kpi.Item2.ToString("C")</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Barras de desviación -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3">Desviación de ingresos</h6>
+                    <div class="d-flex justify-content-between mb-1" style="font-size:.85rem">
+                        <span>Ejecución</span>
+                        <span class="fw-semibold">
+                            @(comp.PrevIngresos > 0 ? (comp.RealIngresos / comp.PrevIngresos * 100).ToString("F1") : "0")%
+                        </span>
+                    </div>
+                    <div class="progress mb-2" style="height:16px;border-radius:8px">
+                        @{ var pctIng = comp.PrevIngresos > 0 ? Math.Min((double)(comp.RealIngresos / comp.PrevIngresos * 100), 100) : 0; }
+                        <div class="progress-bar bg-success" style="width:@pctIng.ToString("F0")%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between" style="font-size:.82rem">
+                        <span class="text-muted">Previsto: @comp.PrevIngresos.ToString("C")</span>
+                        <span class="@(comp.DesvIngresos >= 0 ? "text-success" : "text-danger") fw-semibold">
+                            @(comp.DesvIngresos >= 0 ? "+" : "")@comp.DesvIngresos.ToString("C")
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3">Desviación de gastos</h6>
+                    <div class="d-flex justify-content-between mb-1" style="font-size:.85rem">
+                        <span>Ejecución</span>
+                        <span class="fw-semibold">
+                            @(comp.PrevGastos > 0 ? (comp.RealGastos / comp.PrevGastos * 100).ToString("F1") : "0")%
+                        </span>
+                    </div>
+                    <div class="progress mb-2" style="height:16px;border-radius:8px">
+                        @{ var pctGas = comp.PrevGastos > 0 ? Math.Min((double)(comp.RealGastos / comp.PrevGastos * 100), 100) : 0; }
+                        <div class="progress-bar bg-danger" style="width:@pctGas.ToString("F0")%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between" style="font-size:.82rem">
+                        <span class="text-muted">Previsto: @comp.PrevGastos.ToString("C")</span>
+                        <span class="@(comp.DesvGastos <= 0 ? "text-success" : "text-danger") fw-semibold">
+                            @(comp.DesvGastos >= 0 ? "+" : "")@comp.DesvGastos.ToString("C")
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla mensual -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <h6 class="fw-semibold mb-3">Seguimiento mensual</h6>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Mes</th>
+                            <th class="text-end text-success">Ing. previsto</th>
+                            <th class="text-end text-success">Ing. real</th>
+                            <th class="text-end">Desv. ing.</th>
+                            <th class="text-end text-danger">Gas. previsto</th>
+                            <th class="text-end text-danger">Gas. real</th>
+                            <th class="text-end">Desv. gas.</th>
+                            <th class="text-end">Resultado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in comp.FilasMensuales.Where(f => f.TieneDatos))
+                        {
+                            var dI = f.RealIngresos - f.PrevIngresos;
+                            var dG = f.RealGastos   - f.PrevGastos;
+                            <tr>
+                                <td class="text-capitalize">@f.NombreMes</td>
+                                <td class="text-end text-money text-success">@(f.PrevIngresos > 0 ? f.PrevIngresos.ToString("C") : "—")</td>
+                                <td class="text-end text-money text-success">@(f.RealIngresos > 0 ? f.RealIngresos.ToString("C") : "—")</td>
+                                <td class="text-end text-money @(dI >= 0 ? "text-success" : "text-danger")" style="font-size:.85rem">
+                                    @(f.PrevIngresos > 0 || f.RealIngresos > 0 ? (dI >= 0 ? "+" : "") + dI.ToString("C") : "—")
+                                </td>
+                                <td class="text-end text-money text-danger">@(f.PrevGastos > 0 ? f.PrevGastos.ToString("C") : "—")</td>
+                                <td class="text-end text-money text-danger">@(f.RealGastos > 0 ? f.RealGastos.ToString("C") : "—")</td>
+                                <td class="text-end text-money @(dG <= 0 ? "text-success" : "text-danger")" style="font-size:.85rem">
+                                    @(f.PrevGastos > 0 || f.RealGastos > 0 ? (dG >= 0 ? "+" : "") + dG.ToString("C") : "—")
+                                </td>
+                                <td class="text-end text-money fw-semibold @(f.RealSaldo >= 0 ? "text-success" : "text-danger")">
+                                    @(f.TieneDatos ? f.RealSaldo.ToString("C") : "—")
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td>Total</td>
+                            <td class="text-end text-money text-success">@comp.PrevIngresos.ToString("C")</td>
+                            <td class="text-end text-money text-success">@comp.RealIngresos.ToString("C")</td>
+                            <td class="text-end text-money @(comp.DesvIngresos >= 0 ? "text-success" : "text-danger")">
+                                @(comp.DesvIngresos >= 0 ? "+" : "")@comp.DesvIngresos.ToString("C")
+                            </td>
+                            <td class="text-end text-money text-danger">@comp.PrevGastos.ToString("C")</td>
+                            <td class="text-end text-money text-danger">@comp.RealGastos.ToString("C")</td>
+                            <td class="text-end text-money @(comp.DesvGastos <= 0 ? "text-success" : "text-danger")">
+                                @(comp.DesvGastos >= 0 ? "+" : "")@comp.DesvGastos.ToString("C")
+                            </td>
+                            <td class="text-end text-money @(comp.RealSaldo >= 0 ? "text-success" : "text-danger")">
+                                @comp.RealSaldo.ToString("C")
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalle por línea presupuestaria -->
+    @if (comp.Detalle.Any())
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="fw-semibold mb-3">Ejecución por línea presupuestaria</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Concepto</th>
+                                <th>Tipo</th>
+                                <th>Categoría</th>
+                                <th class="text-end">Previsto</th>
+                                <th class="text-end">Real</th>
+                                <th class="text-end">Desviación</th>
+                                <th style="width:150px">Ejecución</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in comp.Detalle)
+                            {
+                                var colorBar = d.Tipo == TipoPrevision.Ingreso ? "bg-success" : "bg-danger";
+                                var colorDesv = d.Tipo == TipoPrevision.Ingreso
+                                    ? (d.Desviacion >= 0 ? "text-success" : "text-danger")
+                                    : (d.Desviacion <= 0 ? "text-success" : "text-danger");
+                                <tr>
+                                    <td class="fw-semibold">@d.Concepto</td>
+                                    <td>
+                                        <span class="badge @(d.Tipo == TipoPrevision.Ingreso ? "badge-pagado" : "badge-baja")">
+                                            @d.Tipo
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(d.Categoria))
+                                        { <span class="badge bg-light text-dark">@d.Categoria</span> }
+                                        else { <span class="text-muted">—</span> }
+                                    </td>
+                                    <td class="text-end text-money">@d.ImportePrevisto.ToString("C")</td>
+                                    <td class="text-end text-money fw-semibold">@d.ImporteReal.ToString("C")</td>
+                                    <td class="text-end text-money @colorDesv">
+                                        @(d.Desviacion >= 0 ? "+" : "")@d.Desviacion.ToString("C")
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="progress flex-grow-1" style="height:8px;border-radius:4px">
+                                                <div class="progress-bar @colorBar"
+                                                     style="width:@(Math.Min(d.PctEjecucion, 100).ToString("F0"))%"></div>
+                                            </div>
+                                            <small class="@colorDesv" style="min-width:38px;font-size:.78rem">
+                                                @d.PctEjecucion.ToString("F0")%
+                                            </small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <a href="/previsiones/@d.Id/editar" class="btn btn-sm btn-outline-secondary py-0">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? Anio { get; set; }
+
+    bool cargando = true;
+    int anio = DateTime.Today.Year;
+    ComparativaPrevision? comp;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Anio.HasValue) anio = Anio.Value;
+        await Cargar();
+    }
+
+    async Task Cargar()
+    {
+        cargando = true;
+        comp = await PrevSvc.GetComparativaAsync(anio);
+        cargando = false;
+    }
+
+    static readonly string[] colsComp = { "Mes", "Ing.Previsto", "Ing.Real", "Desv.Ing", "Gas.Previsto", "Gas.Real", "Desv.Gas", "Resultado" };
+
+    object[][] FilasComp()
+    {
+        if (comp == null) return Array.Empty<object[]>();
+        return comp.FilasMensuales.Where(f => f.TieneDatos).Select(f => new object[]
+        {
+            f.NombreMes,
+            f.PrevIngresos.ToString("C"), f.RealIngresos.ToString("C"),
+            (f.RealIngresos - f.PrevIngresos).ToString("C"),
+            f.PrevGastos.ToString("C"),   f.RealGastos.ToString("C"),
+            (f.RealGastos - f.PrevGastos).ToString("C"),
+            f.RealSaldo.ToString("C")
+        }).ToArray();
+    }
+}

@@ -1,0 +1,218 @@
+@using AMPAGestion.Services
+@inject ImagenService ImagenSvc
+@inject Blazored.Toast.Services.IToastService Toast
+
+<div class="row g-2">
+    @for (int i = 0; i < 6; i++)
+    {
+        var idx = i;
+        var url    = GetUrl(idx);
+        var nombre = GetNombre(idx);
+        <div class="col-md-4">
+            <div class="border rounded p-2 h-100" style="background:var(--bs-light);min-height:110px">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small class="text-muted fw-semibold">Archivo @(idx + 1)</small>
+                    @if (!string.IsNullOrEmpty(url))
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"
+                                @onclick="() => Eliminar(idx)" title="Eliminar">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(url))
+                {
+                    var ext = ObtenerExtension(url);
+                    @if (ext is "jpg" or "jpeg" or "png" or "gif" or "webp")
+                    {
+                        <a href="@url" target="_blank">
+                            <img src="@url" class="img-fluid rounded mb-1"
+                                 style="max-height:70px;object-fit:cover;width:100%" alt="Archivo @(idx+1)" />
+                        </a>
+                    }
+                    else
+                    {
+                        <a href="@url" target="_blank" class="d-flex align-items-center gap-2 text-decoration-none p-1">
+                            <i class="bi @IconoArchivo(ext) fs-4"></i>
+                            <span class="text-truncate" style="font-size:.78rem;max-width:120px">
+                                @(nombre ?? NombreDesdeUrl(url))
+                            </span>
+                        </a>
+                    }
+                }
+                else
+                {
+                    <div style="min-height:65px">
+                        @if (subiendoIdx == idx)
+                        {
+                            <div class="d-flex align-items-center justify-content-center h-100 pt-2">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                <small class="ms-2 text-muted">Subiendo...</small>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex gap-1 align-items-center justify-content-center pt-2">
+                                <!-- Archivo: cualquier tipo -->
+                                <label class="btn btn-sm btn-outline-secondary cursor-pointer mb-0"
+                                       title="Seleccionar archivo (PDF, Word, Excel, imagen...)">
+                                    <i class="bi bi-paperclip"></i>
+                                    <InputFile OnChange="e => Subir(e, idx)"
+                                               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                                               class="d-none" />
+                                </label>
+                                <!-- Cámara: solo imágenes, capture añadido via JS -->
+                                <label class="btn btn-sm btn-outline-primary cursor-pointer mb-0"
+                                       title="Hacer foto con la cámara">
+                                    <i class="bi bi-camera"></i>
+                                    <InputFile OnChange="e => Subir(e, idx)"
+                                               accept="image/*"
+                                               class="d-none"
+                                               id="@($"cam-{Guid.NewGuid():N}-{idx}")" />
+                                </label>
+                            </div>
+                            <div class="text-center mt-1">
+                                <small class="text-muted" style="font-size:.72rem">
+                                    <i class="bi bi-paperclip me-1"></i>archivo &nbsp;·&nbsp;
+                                    <i class="bi bi-camera me-1"></i>cámara
+                                </small>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+<div class="form-text mt-1">
+    JPG, PNG, PDF, Word, Excel · máx. 80 MB por archivo
+</div>
+
+@code {
+    [Parameter] public string? Url1 { get; set; }
+    [Parameter] public string? Url2 { get; set; }
+    [Parameter] public string? Url3 { get; set; }
+    [Parameter] public string? Url4 { get; set; }
+    [Parameter] public string? Url5 { get; set; }
+    [Parameter] public string? Url6 { get; set; }
+
+    [Parameter] public string? Nombre1 { get; set; }
+    [Parameter] public string? Nombre2 { get; set; }
+    [Parameter] public string? Nombre3 { get; set; }
+    [Parameter] public string? Nombre4 { get; set; }
+    [Parameter] public string? Nombre5 { get; set; }
+    [Parameter] public string? Nombre6 { get; set; }
+
+    [Parameter] public EventCallback<(int idx, string? url, string? nombre)> OnArchivoChanged { get; set; }
+    [Parameter] public string Carpeta { get; set; } = "ampa";
+
+    int subiendoIdx = -1;
+
+    // Nota: el atributo capture="environment" no se puede añadir a InputFile de Blazor
+    // directamente. En móvil, el botón de cámara abre la galería desde donde el usuario
+    // puede elegir "Cámara". Es la solución compatible con Blazor Server.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await Task.CompletedTask; // sin llamadas JS para evitar errores
+    }
+
+    string? GetUrl(int idx) => idx switch
+    {
+        0 => Url1, 1 => Url2, 2 => Url3,
+        3 => Url4, 4 => Url5, 5 => Url6, _ => null
+    };
+
+    string? GetNombre(int idx) => idx switch
+    {
+        0 => Nombre1, 1 => Nombre2, 2 => Nombre3,
+        3 => Nombre4, 4 => Nombre5, 5 => Nombre6, _ => null
+    };
+
+    async Task Subir(InputFileChangeEventArgs e, int idx)
+    {
+        var archivo = e.File;
+        const long maxBytes = 80L * 1024 * 1024; // 80 MB
+
+        if (archivo.Size > maxBytes)
+        {
+            Toast.ShowError("El archivo no puede superar 80 MB");
+            return;
+        }
+
+        // IMPORTANTE: leer el stream ANTES de cualquier StateHasChanged
+        // porque StateHasChanged re-renderiza y destruye la referencia JS al input
+        byte[] datos;
+        try
+        {
+            using var stream = archivo.OpenReadStream(maxBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            datos = ms.ToArray();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SubidaMultiple] Error leyendo archivo: {ex.Message}");
+            Toast.ShowError($"Error al leer el archivo: {ex.Message}");
+            return;
+        }
+
+        // Ahora ya podemos actualizar la UI
+        subiendoIdx = idx;
+        StateHasChanged();
+
+        try
+        {
+            using var uploadStream = new MemoryStream(datos);
+            var url = await ImagenSvc.SubirImagenAsync(uploadStream, archivo.Name, Carpeta);
+            if (url != null)
+            {
+                await OnArchivoChanged.InvokeAsync((idx, url, archivo.Name));
+                Toast.ShowSuccess($"Archivo {idx + 1} subido correctamente");
+            }
+            else
+            {
+                Toast.ShowError("Error al subir el archivo. Comprueba la configuración de Backblaze B2.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SubidaMultiple] Error subiendo: {ex.GetType().Name} - {ex.Message}");
+            Toast.ShowError($"Error: {ex.Message}");
+        }
+        finally
+        {
+            subiendoIdx = -1;
+            StateHasChanged();
+        }
+    }
+
+    async Task Eliminar(int idx)
+    {
+        var url = GetUrl(idx);
+        if (!string.IsNullOrEmpty(url))
+            await ImagenSvc.EliminarImagenAsync(url);
+        await OnArchivoChanged.InvokeAsync((idx, null, null));
+        Toast.ShowInfo($"Archivo {idx + 1} eliminado");
+    }
+
+    string ObtenerExtension(string url)
+    {
+        try { return Path.GetExtension(new Uri(url).AbsolutePath).TrimStart('.').ToLower(); }
+        catch { return ""; }
+    }
+
+    string NombreDesdeUrl(string url)
+    {
+        try { return Path.GetFileName(new Uri(url).AbsolutePath); }
+        catch { return "archivo"; }
+    }
+
+    string IconoArchivo(string ext) => ext switch
+    {
+        "pdf"           => "bi-file-earmark-pdf-fill text-danger",
+        "doc" or "docx" => "bi-file-earmark-word-fill text-primary",
+        "xls" or "xlsx" => "bi-file-earmark-excel-fill text-success",
+        _               => "bi-file-earmark-fill text-secondary"
+    };
+}

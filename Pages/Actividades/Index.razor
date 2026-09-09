@@ -1,0 +1,162 @@
+@page "/actividades"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject ActividadService ActSvc
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Actividades · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-0"><i class="bi bi-calendar-event me-2"></i>Actividades</h4>
+        <small class="text-muted">Curso <strong>@cursoActivo</strong></small>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <SelectorCurso Curso="@cursoActivo" CursoChanged="OnCursoChanged"
+                       Cursos="@cursosDisponibles" MostrarTodos="true" />
+        <BotonesExportar Titulo="@($"Actividades {cursoActivo}")"
+                         Columnas="@colsActs" Filas="@FilasActs()" />
+        <a href="/actividades/nueva" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Nueva actividad
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar actividad..."
+                           value="@busqueda" @oninput="OnBusquedaInput" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="filtroActiva" @bind:after="Buscar">
+                    <option value="">— Todas —</option>
+                    <option value="true">Activas</option>
+                    <option value="false">Inactivas</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (!actividades.Any())
+{
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
+        No hay actividades para el curso @cursoActivo
+    </div>
+}
+else
+{
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Fecha inicio</th>
+                        <th>Fecha fin</th>
+                        <th>Lugar</th>
+                        <th class="text-end">Precio</th>
+                        <th class="text-center">Plazas</th>
+                        <th class="text-center">Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in actividades)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@a.Nombre</div>
+                                @if (!string.IsNullOrEmpty(a.Descripcion))
+                                { <small class="text-muted">@(a.Descripcion.Length > 50 ? a.Descripcion[..50] + "…" : a.Descripcion)</small> }
+                            </td>
+                            <td class="text-muted" style="font-size:.85rem">
+                                @(a.FechaInicio.HasValue ? a.FechaInicio.Value.ToString("dd/MM/yyyy") : "—")
+                            </td>
+                            <td class="text-muted" style="font-size:.85rem">
+                                @(a.FechaFin.HasValue ? a.FechaFin.Value.ToString("dd/MM/yyyy") : "—")
+                            </td>
+                            <td class="text-muted">@(a.Lugar ?? "—")</td>
+                            <td class="text-end text-money">
+                                @(a.Precio.HasValue ? a.Precio.Value.ToString("C") : "—")
+                            </td>
+                            <td class="text-center">
+                                @(a.PlazasMaximas.HasValue ? a.PlazasMaximas.Value.ToString() : "—")
+                            </td>
+                            <td class="text-center">
+                                @if (a.Activa) { <span class="badge badge-pagado">Activa</span> }
+                                else { <span class="badge badge-baja">Inactiva</span> }
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a href="/actividades/@a.Id/editar" class="btn btn-sm btn-outline-primary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger py-0" @onclick="() => Eliminar(a.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    List<Actividad> actividades      = new();
+    List<string>    cursosDisponibles = new();
+    bool   cargando      = true;
+    string cursoActivo   = CursoHelper.GetCursoActual();
+    string busqueda      = string.Empty;
+    string filtroActiva  = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cursosDisponibles = await ActSvc.GetCursosDisponiblesAsync();
+        await Buscar();
+    }
+
+    async Task OnCursoChanged(string c) { cursoActivo = c; await Buscar(); }
+    async Task OnBusquedaInput(ChangeEventArgs e) { busqueda = e.Value?.ToString() ?? ""; await Buscar(); }
+
+    async Task Buscar()
+    {
+        cargando = true;
+        bool? activa = string.IsNullOrEmpty(filtroActiva) ? null : bool.Parse(filtroActiva);
+        string? cur = string.IsNullOrEmpty(cursoActivo) ? null : cursoActivo;
+        actividades = await ActSvc.GetTodasAsync(busqueda, activa, cur);
+        cargando = false;
+    }
+
+    async Task Eliminar(int id)
+    {
+        await ActSvc.EliminarAsync(id);
+        Toast.ShowSuccess("Actividad eliminada");
+        await Buscar();
+    }
+
+    static readonly string[] colsActs = { "Nombre", "Fecha inicio", "Fecha fin", "Lugar", "Precio", "Plazas", "Estado" };
+
+    object[][] FilasActs() => actividades.Select(a => new object[]
+    {
+        a.Nombre,
+        a.FechaInicio.HasValue ? a.FechaInicio.Value.ToString("dd/MM/yyyy") : "",
+        a.FechaFin.HasValue    ? a.FechaFin.Value.ToString("dd/MM/yyyy")    : "",
+        a.Lugar ?? "", a.Precio.HasValue ? a.Precio.Value.ToString("C") : "",
+        a.PlazasMaximas.HasValue ? a.PlazasMaximas.Value.ToString() : "",
+        a.Activa ? "Activa" : "Inactiva"
+    }).ToArray();
+}

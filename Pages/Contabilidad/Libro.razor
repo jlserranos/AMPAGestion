@@ -1,0 +1,549 @@
+@page "/contabilidad/libro"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject ContabilidadService ContSvc
+@inject ContabilidadOperacionesService OpSvc
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Libro de cuentas · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <a href="/contabilidad" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+        <div>
+            <h4 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Libro de cuentas</h4>
+            <small class="text-muted">
+                Curso <strong>@cursoActivo</strong>
+                (@CursoHelper.GetFechaInicio(cursoActivo).ToString("dd/MM/yyyy") —
+                 @CursoHelper.GetFechaFin(cursoActivo).ToString("dd/MM/yyyy"))
+            </small>
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+        <SelectorCurso Curso="@cursoActivo" CursoChanged="OnCursoChanged"
+                       Cursos="@cursosDisponibles" MostrarTodos="true" />
+        <BotonesExportar Titulo="@($"Libro cuentas {cursoActivo}")"
+                         Columnas="@colsLibro" Filas="@FilasLibro()" />
+    </div>
+</div>
+
+<!-- Menú de operaciones contables -->
+<div class="card shadow-sm border-0 mb-3 border-start border-4 border-primary">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="text-muted fw-semibold me-2" style="font-size:.85rem">
+                <i class="bi bi-tools me-1"></i>Operaciones:
+            </span>
+            <button class="btn btn-sm btn-outline-primary" @onclick="() => mostrarApunteManual = true">
+                <i class="bi bi-pencil-square me-1"></i>Nuevo apunte manual
+            </button>
+            <button class="btn btn-sm btn-outline-success" @onclick="IniciarApertura">
+                <i class="bi bi-box-arrow-in-right me-1"></i>Apertura de curso
+            </button>
+            <button class="btn btn-sm btn-outline-warning" @onclick="IniciarCierre">
+                <i class="bi bi-box-arrow-right me-1"></i>Cierre de curso
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="bi bi-three-dots me-1"></i>Más operaciones
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <button class="dropdown-item" @onclick="() => NuevoApunteTipo(TipoApunteManual.ComisionBancaria, TipoApunte.Gasto)">
+                            <i class="bi bi-bank me-2 text-danger"></i>Comisión bancaria
+                        </button>
+                    </li>
+                    <li>
+                        <button class="dropdown-item" @onclick="() => NuevoApunteTipo(TipoApunteManual.InteresesBancarios, TipoApunte.Ingreso)">
+                            <i class="bi bi-bank me-2 text-success"></i>Intereses bancarios
+                        </button>
+                    </li>
+                    <li>
+                        <button class="dropdown-item" @onclick="() => NuevoApunteTipo(TipoApunteManual.Devolucion, TipoApunte.Ingreso)">
+                            <i class="bi bi-arrow-return-left me-2 text-info"></i>Devolución
+                        </button>
+                    </li>
+                    <li>
+                        <button class="dropdown-item" @onclick="() => NuevoApunteTipo(TipoApunteManual.Ajuste, TipoApunte.Ingreso)">
+                            <i class="bi bi-sliders me-2 text-secondary"></i>Ajuste contable
+                        </button>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <button class="dropdown-item" @onclick="VerApuntesManuales">
+                            <i class="bi bi-list-ul me-2"></i>Ver apuntes manuales
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <select class="form-select form-select-sm" @bind="filtroTipo" @bind:after="StateHasChanged">
+                    <option value="">Todos los movimientos</option>
+                    <option value="Ingreso">Solo ingresos</option>
+                    <option value="Gasto">Solo gastos</option>
+                </select>
+            </div>
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar concepto, detalle..."
+                           value="@busqueda" @oninput="OnBusquedaInput" />
+                </div>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">@movimientosFiltrados.Count() apuntes</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Totales rápidos -->
+<div class="row g-2 mb-3">
+    <div class="col-sm-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 d-flex justify-content-between">
+                <span class="text-muted" style="font-size:.85rem"><i class="bi bi-arrow-down-circle text-success me-1"></i>Total ingresos</span>
+                <span class="fw-bold text-success text-money">
+                    @movimientosFiltrados.Where(m => m.Tipo == TipoApunte.Ingreso).Sum(m => m.Haber).ToString("C")
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 d-flex justify-content-between">
+                <span class="text-muted" style="font-size:.85rem"><i class="bi bi-arrow-up-circle text-danger me-1"></i>Total gastos</span>
+                <span class="fw-bold text-danger text-money">
+                    @movimientosFiltrados.Where(m => m.Tipo == TipoApunte.Gasto).Sum(m => m.Debe).ToString("C")
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        @{ var saldoF = movimientosFiltrados.Sum(m => m.Haber - m.Debe); }
+        <div class="card border-0 shadow-sm border-start border-3 @(saldoF >= 0 ? "border-success" : "border-danger")">
+            <div class="card-body py-2 d-flex justify-content-between">
+                <span class="text-muted" style="font-size:.85rem"><i class="bi bi-wallet2 me-1"></i>Saldo</span>
+                <span class="fw-bold text-money @(saldoF >= 0 ? "text-success" : "text-danger")">@saldoF.ToString("C")</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla del libro -->
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Concepto</th>
+                    <th>Detalle</th>
+                    <th>Ref.</th>
+                    <th class="text-end text-success">Ingreso (Haber)</th>
+                    <th class="text-end text-danger">Gasto (Debe)</th>
+                    <th class="text-end">Saldo acum.</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (cargando)
+                {
+                    <tr><td colspan="9" class="text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                    </td></tr>
+                }
+                else if (!movimientosFiltrados.Any())
+                {
+                    <tr><td colspan="9" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-2 d-block mb-2"></i>Sin movimientos
+                    </td></tr>
+                }
+                else
+                {
+                    @foreach (var m in movimientosFiltrados)
+                    {
+                        <tr class="@(m.Pendiente ? "table-warning" : m.Origen == "Manual" ? "table-info bg-opacity-10" : "")">
+                            <td style="font-size:.83rem;white-space:nowrap">@m.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                @if (m.Tipo == TipoApunte.Ingreso)
+                                { <span class="badge badge-pagado"><i class="bi bi-arrow-down-short"></i> Ingreso</span> }
+                                else if (m.Pendiente)
+                                { <span class="badge badge-pendiente"><i class="bi bi-clock"></i> Pendiente</span> }
+                                else
+                                { <span class="badge badge-baja"><i class="bi bi-arrow-up-short"></i> Gasto</span> }
+                                @if (m.Origen == "Manual")
+                                { <span class="badge bg-info text-dark ms-1" style="font-size:.7rem">manual</span> }
+                            </td>
+                            <td style="max-width:200px">
+                                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@m.Concepto</div>
+                                @if (!string.IsNullOrEmpty(m.Categoria) && m.Origen == "Manual")
+                                { <small class="text-muted">@m.Categoria</small> }
+                            </td>
+                            <td class="text-muted" style="font-size:.85rem;max-width:150px">
+                                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@m.Detalle</div>
+                            </td>
+                            <td class="text-muted" style="font-size:.83rem">@m.Referencia</td>
+                            <td class="text-end text-money fw-semibold text-success">
+                                @(m.Haber > 0 ? m.Haber.ToString("C") : "")
+                            </td>
+                            <td class="text-end text-money fw-semibold text-danger">
+                                @(m.Debe > 0 ? m.Debe.ToString("C") : "")
+                            </td>
+                            <td class="text-end text-money fw-semibold @(m.SaldoAcumulado >= 0 ? "text-success" : "text-danger")" style="white-space:nowrap">
+                                @m.SaldoAcumulado.ToString("C")
+                            </td>
+                            <td>
+                                @if (m.Origen == "Factura")
+                                {
+                                    <a href="/facturas/@m.OrigenId/editar" class="btn btn-sm btn-outline-secondary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                }
+                                else if (m.Origen == "Manual")
+                                {
+                                    <button class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => EliminarApunteManual(m.OrigenId)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="text-muted mt-2" style="font-size:.78rem">
+    <i class="bi bi-info-circle me-1"></i>
+    Las filas en <span class="badge bg-warning text-dark">amarillo</span> son gastos pendientes de pago.
+    Las filas en <span class="badge bg-info text-dark">azul</span> son apuntes manuales.
+</div>
+
+<!-- Modal: Nuevo apunte manual -->
+@if (mostrarApunteManual)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header border-0">
+                    <h6 class="modal-title fw-bold">
+                        <i class="bi bi-pencil-square me-2"></i>Nuevo apunte manual
+                    </h6>
+                    <button class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de operación</label>
+                            <select class="form-select" @bind="apunteEditar.TipoOperacion">
+                                @foreach (var t in Enum.GetValues<TipoApunteManual>())
+                                {
+                                    if (t != TipoApunteManual.AperturaEjercicio && t != TipoApunteManual.CierreEjercicio)
+                                    { <option value="@t">@DescTipoApunte(t)</option> }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo</label>
+                            <select class="form-select" @bind="apunteEditar.Tipo">
+                                <option value="@TipoApunte.Ingreso">Ingreso</option>
+                                <option value="@TipoApunte.Gasto">Gasto</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Concepto *</label>
+                            <input type="text" class="form-control" @bind="apunteEditar.Concepto"
+                                   placeholder="Descripción del apunte" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Importe €</label>
+                            <input type="number" class="form-control" step="0.01" min="0"
+                                   @bind="apunteEditar.Importe" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha</label>
+                            <input type="date" class="form-control"
+                                   value="@apunteEditar.Fecha.ToString("yyyy-MM-dd")"
+                                   @onchange="e => apunteEditar.Fecha = DateTime.Parse(e.Value!.ToString()!)" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Referencia</label>
+                            <input type="text" class="form-control" @bind="apunteEditar.Referencia"
+                                   placeholder="Nº doc., banco..." />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Descripción adicional</label>
+                            <textarea class="form-control" rows="2" @bind="apunteEditar.Descripcion"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-secondary btn-sm" @onclick="CerrarModal">Cancelar</button>
+                    <button class="btn btn-primary btn-sm" @onclick="GuardarApunte"
+                            disabled="@(string.IsNullOrWhiteSpace(apunteEditar.Concepto) || apunteEditar.Importe <= 0)">
+                        <i class="bi bi-floppy me-1"></i>Guardar apunte
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Confirmación apertura -->
+@if (mostrarApertura)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header border-0 bg-success bg-opacity-10">
+                    <h6 class="modal-title fw-bold text-success">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Apertura de ejercicio — @cursoActivo
+                    </h6>
+                    <button class="btn-close" @onclick="() => mostrarApertura = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Esta operación creará un asiento de apertura para el curso <strong>@cursoActivo</strong>
+                    con el saldo final del curso anterior.</p>
+                    <div class="alert alert-info py-2">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Solo se puede hacer una apertura por curso. Asegúrate de que todos los apuntes
+                        del curso anterior están correctos antes de continuar.
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => mostrarApertura = false">Cancelar</button>
+                    <button class="btn btn-success btn-sm" @onclick="EjecutarApertura">
+                        <i class="bi bi-check me-1"></i>Confirmar apertura
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Confirmación cierre -->
+@if (mostrarCierre)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header border-0 bg-warning bg-opacity-10">
+                    <h6 class="modal-title fw-bold text-warning">
+                        <i class="bi bi-box-arrow-right me-2"></i>Cierre de ejercicio — @cursoActivo
+                    </h6>
+                    <button class="btn-close" @onclick="() => mostrarCierre = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Esta operación generará el asiento de cierre para el curso <strong>@cursoActivo</strong>
+                    con el resumen de ingresos, gastos y saldo final.</p>
+                    <div class="alert alert-warning py-2">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Antes de cerrar el curso, asegúrate de que todas las facturas pendientes
+                        están liquidadas y todos los apuntes son correctos.
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => mostrarCierre = false">Cancelar</button>
+                    <button class="btn btn-warning btn-sm" @onclick="EjecutarCierre">
+                        <i class="bi bi-check me-1"></i>Confirmar cierre
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Resultado del cierre -->
+@if (resumenCierre != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header border-0 bg-success bg-opacity-10">
+                    <h6 class="modal-title fw-bold text-success">
+                        <i class="bi bi-check-circle me-2"></i>Cierre realizado — @resumenCierre.Curso
+                    </h6>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">Total ingresos</td>
+                                    <td class="text-end text-success text-money fw-semibold">@resumenCierre.TotalIngresos.ToString("C")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Total gastos</td>
+                                    <td class="text-end text-danger text-money fw-semibold">@resumenCierre.TotalGastos.ToString("C")</td>
+                                </tr>
+                                <tr class="table-light fw-bold">
+                                    <td>Saldo final</td>
+                                    <td class="text-end text-money @(resumenCierre.SaldoFinal >= 0 ? "text-success" : "text-danger")">
+                                        @resumenCierre.SaldoFinal.ToString("C")
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted mb-0" style="font-size:.85rem">
+                        El saldo de <strong>@resumenCierre.SaldoFinal.ToString("C")</strong> se trasladará
+                        al siguiente curso al hacer la apertura.
+                    </p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-success" @onclick="() => resumenCierre = null">
+                        <i class="bi bi-check me-1"></i>Aceptar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    bool cargando = true;
+    string cursoActivo = CursoHelper.GetCursoActual();
+    List<string>         cursosDisponibles = new();
+    List<ApunteContable> todosMovimientos  = new();
+    string busqueda   = string.Empty;
+    string filtroTipo = string.Empty;
+
+    bool mostrarApunteManual = false;
+    bool mostrarApertura     = false;
+    bool mostrarCierre       = false;
+    ApunteManual apunteEditar = new();
+    ResumenCierre? resumenCierre;
+
+    IEnumerable<ApunteContable> movimientosFiltrados => todosMovimientos
+        .Where(m =>
+            (string.IsNullOrEmpty(filtroTipo) || m.Tipo.ToString() == filtroTipo) &&
+            (string.IsNullOrEmpty(busqueda) ||
+             m.Concepto.Contains(busqueda, StringComparison.OrdinalIgnoreCase) ||
+             m.Detalle.Contains(busqueda, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        cursosDisponibles = await ContSvc.GetCursosDisponiblesAsync();
+        await Cargar();
+    }
+
+    async Task OnCursoChanged(string c) { cursoActivo = c; await Cargar(); }
+
+    async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        busqueda = e.Value?.ToString() ?? string.Empty;
+        await Task.CompletedTask;
+    }
+
+    async Task Cargar()
+    {
+        cargando = true;
+        string? cur = string.IsNullOrEmpty(cursoActivo) ? null : cursoActivo;
+        todosMovimientos = await ContSvc.GetLibroAsync(cur);
+        cargando = false;
+    }
+
+    void NuevoApunteTipo(TipoApunteManual tipo, TipoApunte tipoApunte)
+    {
+        apunteEditar = new ApunteManual
+        {
+            TipoOperacion  = tipo,
+            Tipo           = tipoApunte,
+            Fecha          = DateTime.Today,
+            CursoAcademico = cursoActivo,
+            Concepto       = DescTipoApunte(tipo)
+        };
+        mostrarApunteManual = true;
+    }
+
+    void VerApuntesManuales()
+    {
+        filtroTipo = "";
+        busqueda   = "manual";
+        StateHasChanged();
+    }
+
+    void CerrarModal()
+    {
+        mostrarApunteManual = false;
+        apunteEditar = new();
+    }
+
+    async Task GuardarApunte()
+    {
+        apunteEditar.CursoAcademico = cursoActivo;
+        await OpSvc.GuardarApunteAsync(apunteEditar);
+        Toast.ShowSuccess("Apunte registrado");
+        CerrarModal();
+        await Cargar();
+    }
+
+    async Task EliminarApunteManual(int id)
+    {
+        await OpSvc.EliminarApunteAsync(id);
+        Toast.ShowSuccess("Apunte eliminado");
+        await Cargar();
+    }
+
+    void IniciarApertura() => mostrarApertura = true;
+    void IniciarCierre()   => mostrarCierre   = true;
+
+    async Task EjecutarApertura()
+    {
+        mostrarApertura = false;
+        try
+        {
+            await OpSvc.AperturaEjercicioAsync(cursoActivo);
+            Toast.ShowSuccess($"Apertura de ejercicio {cursoActivo} realizada");
+            await Cargar();
+        }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+    }
+
+    async Task EjecutarCierre()
+    {
+        mostrarCierre = false;
+        try
+        {
+            resumenCierre = await OpSvc.CierreEjercicioAsync(cursoActivo);
+            Toast.ShowSuccess($"Cierre de ejercicio {cursoActivo} realizado");
+            await Cargar();
+        }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+    }
+
+    string DescTipoApunte(TipoApunteManual t) => t switch
+    {
+        TipoApunteManual.ComisionBancaria   => "Comisión bancaria",
+        TipoApunteManual.InteresesBancarios => "Intereses bancarios",
+        TipoApunteManual.Devolucion         => "Devolución",
+        TipoApunteManual.Ajuste             => "Ajuste contable",
+        TipoApunteManual.Transferencia      => "Transferencia",
+        TipoApunteManual.Otro               => "Apunte manual",
+        _                                   => t.ToString()
+    };
+
+    static readonly string[] colsLibro = { "Fecha","Tipo","Concepto","Detalle","Ref.","Ingreso","Gasto","Saldo" };
+
+    object[][] FilasLibro() => movimientosFiltrados.Select(m => new object[]
+    {
+        m.Fecha.ToString("dd/MM/yyyy"),
+        m.Tipo == TipoApunte.Ingreso ? "Ingreso" : (m.Pendiente ? "Pendiente" : "Gasto"),
+        m.Concepto, m.Detalle, m.Referencia,
+        m.Haber > 0 ? m.Haber.ToString("C") : "",
+        m.Debe  > 0 ? m.Debe.ToString("C")  : "",
+        m.SaldoAcumulado.ToString("C")
+    }).ToArray();
+}

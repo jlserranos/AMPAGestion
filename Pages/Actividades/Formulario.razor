@@ -1,0 +1,148 @@
+@page "/actividades/nueva"
+@page "/actividades/{Id:int}/editar"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject ActividadService ActSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>@(Id.HasValue ? "Editar actividad" : "Nueva actividad") · AMPA Gestión</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/actividades" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="fw-bold mb-0">@(Id.HasValue ? "Editar actividad" : "Nueva actividad")</h4>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <EditForm Model="actividad" OnValidSubmit="Guardar">
+        <DataAnnotationsValidator />
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="card card-form shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">Datos de la actividad</h6>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Nombre <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="actividad.Nombre" class="form-control" placeholder="Taller de Navidad" />
+                                <ValidationMessage For="() => actividad.Nombre" class="text-danger small" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Descripción</label>
+                                <InputTextArea @bind-Value="actividad.Descripcion" class="form-control" rows="3" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Fecha inicio</label>
+                                <InputDate @bind-Value="actividad.FechaInicio" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Fecha fin</label>
+                                <InputDate @bind-Value="actividad.FechaFin" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Precio €</label>
+                                <InputNumber @bind-Value="actividad.Precio" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Lugar</label>
+                                <InputText @bind-Value="actividad.Lugar" class="form-control" placeholder="Salón de actos" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Plazas máximas</label>
+                                <InputNumber @bind-Value="actividad.PlazasMaximas" class="form-control" />
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="form-check form-switch">
+                                    <InputCheckbox @bind-Value="actividad.Activa" class="form-check-input" id="chkActiva" />
+                                    <label class="form-check-label" for="chkActiva">Activa</label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Observaciones</label>
+                                <InputTextArea @bind-Value="actividad.Observaciones" class="form-control" rows="2" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alertas -->
+                <div class="card card-form shadow-sm mb-3">
+                    <div class="card-body">
+                        <AlertasEditor Alertas="actividad.Alertas" />
+                    </div>
+                </div>
+
+                <!-- Imágenes -->
+                <div class="card card-form shadow-sm mt-3">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">
+                            <i class="bi bi-images me-1"></i>Imágenes
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Imagen principal</label>
+                                <SubidaImagen @bind-UrlActual="actividad.FotoUrl" Carpeta="ampa/actividades" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Imagen secundaria</label>
+                                <SubidaImagen @bind-UrlActual="actividad.Foto2Url" Carpeta="ampa/actividades" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@guardando">
+                        @if (guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-floppy me-1"></i>@(Id.HasValue ? "Guardar cambios" : "Crear actividad")
+                    </button>
+                    <a href="/actividades" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    Actividad actividad = new();
+    bool cargando = true;
+    bool guardando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existente = await ActSvc.GetByIdAsync(Id.Value);
+            if (existente != null) actividad = existente;
+            else Nav.NavigateTo("/actividades");
+        }
+        cargando = false;
+    }
+
+    async Task Guardar()
+    {
+        guardando = true;
+        try
+        {
+            foreach (var al in actividad.Alertas)
+            { al.TipoEntidad = TipoEntidadAlerta.Actividad; al.ActividadId = actividad.Id > 0 ? actividad.Id : null; }
+            if (Id.HasValue) { await ActSvc.ActualizarAsync(actividad); Toast.ShowSuccess("Actividad actualizada"); }
+            else             { await ActSvc.CrearAsync(actividad);      Toast.ShowSuccess("Actividad creada"); }
+            Nav.NavigateTo("/actividades");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Error: {ex.Message}");
+            guardando = false;
+        }
+    }
+}

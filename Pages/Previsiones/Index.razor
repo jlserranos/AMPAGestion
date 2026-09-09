@@ -1,0 +1,245 @@
+@page "/previsiones"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject PrevisionService PrevSvc
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Previsiones · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Previsiones presupuestarias</h4>
+    <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" style="width:110px" @bind="anio" @bind:after="Cargar">
+            @for (int a = DateTime.Today.Year + 1; a >= DateTime.Today.Year - 3; a--)
+            { <option value="@a">@a</option> }
+        </select>
+        <BotonesExportar Titulo="@($"Previsiones {anio}")" Columnas="@colsPrev" Filas="@FilasPrev()" />
+        <a href="/previsiones/nueva?anio=@anio" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Nueva previsión
+        </a>
+        <a href="/previsiones/comparativa?anio=@anio" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-bar-chart-steps me-1"></i>Ver comparativa
+        </a>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <!-- Totales -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted" style="font-size:.82rem">Ingresos previstos</div>
+                        <div class="fw-bold text-success text-money fs-4">
+                            @previsiones.Where(p => p.Tipo == TipoPrevision.Ingreso).Sum(p => p.ImportePrevisto).ToString("C")
+                        </div>
+                    </div>
+                    <i class="bi bi-arrow-down-circle-fill text-success fs-2 opacity-25"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted" style="font-size:.82rem">Gastos previstos</div>
+                        <div class="fw-bold text-danger text-money fs-4">
+                            @previsiones.Where(p => p.Tipo == TipoPrevision.Gasto).Sum(p => p.ImportePrevisto).ToString("C")
+                        </div>
+                    </div>
+                    <i class="bi bi-arrow-up-circle-fill text-danger fs-2 opacity-25"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            @{ var saldo = previsiones.Where(p => p.Tipo == TipoPrevision.Ingreso).Sum(p => p.ImportePrevisto)
+                         - previsiones.Where(p => p.Tipo == TipoPrevision.Gasto).Sum(p => p.ImportePrevisto); }
+            <div class="card border-0 shadow-sm border-start border-4 @(saldo >= 0 ? "border-success" : "border-danger")">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted" style="font-size:.82rem">Resultado previsto</div>
+                        <div class="fw-bold text-money fs-4 @(saldo >= 0 ? "text-success" : "text-danger")">
+                            @saldo.ToString("C")
+                        </div>
+                    </div>
+                    <i class="bi bi-wallet2 fs-2 opacity-25 @(saldo >= 0 ? "text-success" : "text-danger")"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!previsiones.Any())
+    {
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-graph-up-arrow fs-1 d-block mb-2"></i>
+            No hay previsiones para @anio.<br />
+            <a href="/previsiones/nueva?anio=@anio" class="btn btn-primary mt-3">Crear primera previsión</a>
+        </div>
+    }
+    else
+    {
+        <!-- Ingresos -->
+        @if (previsiones.Any(p => p.Tipo == TipoPrevision.Ingreso))
+        {
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-success bg-opacity-10 border-0">
+                    <h6 class="mb-0 text-success fw-semibold">
+                        <i class="bi bi-arrow-down-circle me-2"></i>Previsiones de ingreso
+                    </h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Concepto</th>
+                                <th>Distribución mensual prevista</th>
+                                <th class="text-end">Total previsto</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in previsiones.Where(x => x.Tipo == TipoPrevision.Ingreso))
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@p.Concepto</div>
+                                        @if (!string.IsNullOrEmpty(p.Observaciones))
+                                        { <small class="text-muted">@p.Observaciones</small> }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            @for (int m = 1; m <= 12; m++)
+                                            {
+                                                var val = p.GetMes(m);
+                                                <span class="badge @(val > 0 ? "bg-success" : "bg-light text-muted")"
+                                                      style="font-size:.7rem" title="@(new DateTime(2000,m,1).ToString("MMM"))">
+                                                    @(val > 0 ? val.ToString("N0") : "—")
+                                                </span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="text-end text-money fw-semibold text-success">@p.ImportePrevisto.ToString("C")</td>
+                                    <td>
+                                        <div class="d-flex gap-1">
+                                            <a href="/previsiones/@p.Id/editar" class="btn btn-sm btn-outline-secondary py-0">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger py-0" @onclick="() => Eliminar(p.Id)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <!-- Gastos -->
+        @if (previsiones.Any(p => p.Tipo == TipoPrevision.Gasto))
+        {
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-danger bg-opacity-10 border-0">
+                    <h6 class="mb-0 text-danger fw-semibold">
+                        <i class="bi bi-arrow-up-circle me-2"></i>Previsiones de gasto
+                    </h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Concepto</th>
+                                <th>Categoría</th>
+                                <th>Distribución mensual prevista</th>
+                                <th class="text-end">Total previsto</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in previsiones.Where(x => x.Tipo == TipoPrevision.Gasto))
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@p.Concepto</div>
+                                        @if (!string.IsNullOrEmpty(p.Observaciones))
+                                        { <small class="text-muted">@p.Observaciones</small> }
+                                    </td>
+                                    <td>
+                                        @if (p.Categoria.HasValue)
+                                        { <span class="badge bg-light text-dark">@p.Categoria</span> }
+                                        else { <span class="text-muted">—</span> }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            @for (int m = 1; m <= 12; m++)
+                                            {
+                                                var val = p.GetMes(m);
+                                                <span class="badge @(val > 0 ? "bg-danger" : "bg-light text-muted")"
+                                                      style="font-size:.7rem" title="@(new DateTime(2000,m,1).ToString("MMM"))">
+                                                    @(val > 0 ? val.ToString("N0") : "—")
+                                                </span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="text-end text-money fw-semibold text-danger">@p.ImportePrevisto.ToString("C")</td>
+                                    <td>
+                                        <div class="d-flex gap-1">
+                                            <a href="/previsiones/@p.Id/editar" class="btn btn-sm btn-outline-secondary py-0">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger py-0" @onclick="() => Eliminar(p.Id)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    List<Prevision> previsiones = new();
+    bool cargando = true;
+    int anio = DateTime.Today.Year;
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    async Task Cargar()
+    {
+        cargando = true;
+        previsiones = await PrevSvc.GetTodasAsync(anio);
+        cargando = false;
+    }
+
+    async Task Eliminar(int id)
+    {
+        await PrevSvc.EliminarAsync(id);
+        Toast.ShowSuccess("Previsión eliminada");
+        await Cargar();
+    }
+
+    static readonly string[] colsPrev = { "Tipo", "Concepto", "Categoría", "Observaciones", "Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic","Total" };
+
+    object[][] FilasPrev() => previsiones.Select(p => new object[]
+    {
+        p.Tipo.ToString(), p.Concepto, p.Categoria?.ToString() ?? "", p.Observaciones ?? "",
+        p.GetMes(1).ToString("N2"),  p.GetMes(2).ToString("N2"),  p.GetMes(3).ToString("N2"),
+        p.GetMes(4).ToString("N2"),  p.GetMes(5).ToString("N2"),  p.GetMes(6).ToString("N2"),
+        p.GetMes(7).ToString("N2"),  p.GetMes(8).ToString("N2"),  p.GetMes(9).ToString("N2"),
+        p.GetMes(10).ToString("N2"), p.GetMes(11).ToString("N2"), p.GetMes(12).ToString("N2"),
+        p.ImportePrevisto.ToString("C")
+    }).ToArray();
+}

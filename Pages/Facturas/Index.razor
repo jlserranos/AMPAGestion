@@ -1,0 +1,207 @@
+@page "/facturas"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject FacturaService FacturaSvc
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Facturas · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-0"><i class="bi bi-receipt me-2"></i>Facturas de gasto</h4>
+        <small class="text-muted">Curso <strong>@cursoActivo</strong></small>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <SelectorCurso Curso="@cursoActivo" CursoChanged="OnCursoChanged"
+                       Cursos="@cursosDisponibles" MostrarTodos="true" />
+        <BotonesExportar Titulo="@($"Facturas {cursoActivo}")"
+                         Columnas="@colsFacturas" Filas="@FilasFacturas()" />
+        <a href="/facturas/nueva" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Nueva factura
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar proveedor o concepto..."
+                           value="@busqueda" @oninput="OnBusquedaInput" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="filtroCategoria" @bind:after="Buscar">
+                    <option value="">— Todas las categorías —</option>
+                    @foreach (var c in Enum.GetValues<CategoriaGasto>())
+                    { <option value="@c">@c</option> }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="filtroPagado" @bind:after="Buscar">
+                    <option value="">— Todas —</option>
+                    <option value="true">✓ Pagadas</option>
+                    <option value="false">⏳ Pendientes</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <small class="text-muted">
+                    Total: <span class="fw-semibold text-danger text-money">
+                        @facturas.Sum(f => f.Total).ToString("C")
+                    </span>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>Concepto</th>
+                    <th>Categoría</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-center">Estado</th>
+                    <th class="text-center">Arch.</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (cargando)
+                {
+                    <tr><td colspan="8" class="text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                    </td></tr>
+                }
+                else if (!facturas.Any())
+                {
+                    <tr><td colspan="8" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                        No hay facturas para el curso @cursoActivo
+                    </td></tr>
+                }
+                else
+                {
+                    @foreach (var f in facturas)
+                    {
+                        var numArch = new[] { f.Foto1Url, f.Foto2Url, f.Foto3Url,
+                                              f.Foto4Url, f.Foto5Url, f.Foto6Url }
+                                     .Count(u => !string.IsNullOrEmpty(u));
+                        <tr>
+                            <td style="font-size:.85rem">@f.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td class="fw-semibold">@f.Proveedor</td>
+                            <td class="text-muted" style="font-size:.88rem">
+                                @(f.Concepto.Length > 50 ? f.Concepto[..50] + "…" : f.Concepto)
+                            </td>
+                            <td><span class="badge bg-light text-dark">@f.Categoria</span></td>
+                            <td class="text-end text-money fw-semibold">@f.Total.ToString("C")</td>
+                            <td class="text-center">
+                                @if (f.Pagado)
+                                { <span class="badge badge-pagado">✓ Pagada</span> }
+                                else
+                                { <span class="badge badge-pendiente">⏳ Pendiente</span> }
+                            </td>
+                            <td class="text-center">
+                                @if (numArch > 0)
+                                { <span class="badge bg-light text-dark"><i class="bi bi-paperclip"></i> @numArch</span> }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    @if (!f.Pagado)
+                                    {
+                                        <button class="btn btn-sm btn-outline-success py-0"
+                                                @onclick="() => MarcarPagada(f.Id)" title="Marcar como pagada">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    }
+                                    <a href="/facturas/@f.Id/editar" class="btn btn-sm btn-outline-primary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => Eliminar(f.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    <tr class="table-light fw-bold">
+                        <td colspan="4">Total</td>
+                        <td class="text-end text-money text-danger">@facturas.Sum(f => f.Total).ToString("C")</td>
+                        <td colspan="3"></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    List<Factura> facturas       = new();
+    List<string>  cursosDisponibles = new();
+    bool   cargando         = true;
+    string cursoActivo      = CursoHelper.GetCursoActual();
+    string busqueda         = string.Empty;
+    string filtroCategoria  = string.Empty;
+    string filtroPagado     = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cursosDisponibles = await FacturaSvc.GetCursosDisponiblesAsync();
+        await Buscar();
+    }
+
+    async Task OnCursoChanged(string nuevoCurso)
+    {
+        cursoActivo = nuevoCurso;
+        await Buscar();
+    }
+
+    async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        busqueda = e.Value?.ToString() ?? string.Empty;
+        await Buscar();
+    }
+
+    async Task Buscar()
+    {
+        cargando = true;
+        CategoriaGasto? cat  = Enum.TryParse<CategoriaGasto>(filtroCategoria, out var c) ? c : null;
+        bool?           pag  = string.IsNullOrEmpty(filtroPagado) ? null : bool.Parse(filtroPagado);
+        string?         cur  = string.IsNullOrEmpty(cursoActivo) ? null : cursoActivo;
+        facturas = await FacturaSvc.GetTodasAsync(cur, busqueda, cat, pag);
+        cargando = false;
+    }
+
+    async Task MarcarPagada(int id)
+    {
+        await FacturaSvc.MarcarPagadaAsync(id);
+        Toast.ShowSuccess("Factura marcada como pagada");
+        await Buscar();
+    }
+
+    async Task Eliminar(int id)
+    {
+        await FacturaSvc.EliminarAsync(id);
+        Toast.ShowSuccess("Factura eliminada");
+        await Buscar();
+    }
+
+    static readonly string[] colsFacturas = { "Fecha", "Proveedor", "Concepto", "Categoría", "Base", "IVA", "Total", "Estado" };
+
+    object[][] FilasFacturas() => facturas.Select(f => new object[]
+    {
+        f.Fecha.ToString("dd/MM/yyyy"), f.Proveedor, f.Concepto,
+        f.Categoria.ToString(), f.BaseImponible.ToString("C"),
+        f.IVA.ToString("C"), f.Total.ToString("C"),
+        f.Pagado ? "Pagada" : "Pendiente"
+    }).ToArray();
+}

@@ -1,0 +1,252 @@
+@page "/facturas/nueva"
+@page "/facturas/{Id:int}/editar"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject FacturaService FacturaSvc
+@inject ProveedorService ProveedorSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>@(Id.HasValue ? "Editar factura" : "Nueva factura") · AMPA Gestión</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/facturas" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="fw-bold mb-0">@(Id.HasValue ? "Editar factura" : "Nueva factura")</h4>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <EditForm Model="factura" OnValidSubmit="Guardar">
+        <DataAnnotationsValidator />
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="card card-form shadow-sm mb-3">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">Datos de la factura</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6 position-relative">
+                                <label class="form-label">Proveedor <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" value="@factura.Proveedor"
+                                       placeholder="Nombre del proveedor..."
+                                       @oninput="OnProveedorInput" @onblur="OnProveedorBlur"
+                                       autocomplete="off" />
+                                <ValidationMessage For="() => factura.Proveedor" class="text-danger small" />
+                                @if (sugerencias.Any() && mostrarSugerencias)
+                                {
+                                    <div class="position-absolute bg-white border rounded shadow-sm"
+                                         style="z-index:1000;top:calc(100% - 4px);left:0;right:0;max-height:200px;overflow-y:auto">
+                                        @foreach (var s in sugerencias)
+                                        {
+                                            <div class="px-3 py-2 cursor-pointer border-bottom"
+                                                 style="font-size:.9rem"
+                                                 @onmousedown="() => SeleccionarProveedor(s)">
+                                                <div>@s.Nombre</div>
+                                                @if (s.CategoriaHabitual.HasValue)
+                                                {
+                                                    <small class="text-muted">@s.CategoriaHabitual · IVA @s.IVAHabitual%</small>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Número de factura</label>
+                                <InputText @bind-Value="factura.NumeroFactura" class="form-control" placeholder="F-2024-001" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Concepto <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="factura.Concepto" class="form-control" />
+                                <ValidationMessage For="() => factura.Concepto" class="text-danger small" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Base imponible €</label>
+                                <input type="number" class="form-control" step="0.01" min="0"
+                                       value="@factura.BaseImponible"
+                                       @onchange="OnBaseChange" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">% IVA</label>
+                                <select class="form-select" value="@factura.PorcentajeIVA"
+                                        @onchange="OnPctIVAChange">
+                                    <option value="0">0%</option>
+                                    <option value="4">4%</option>
+                                    <option value="10">10%</option>
+                                    <option value="21">21%</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">IVA €</label>
+                                <div class="form-control bg-light text-money">@factura.IVA.ToString("C")</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Total</label>
+                                <div class="form-control bg-light fw-bold text-money text-success fs-5">
+                                    @factura.Total.ToString("C")
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Categoría</label>
+                                <InputSelect @bind-Value="factura.Categoria" class="form-select">
+                                    @foreach (var c in Enum.GetValues<CategoriaGasto>())
+                                    { <option value="@c">@c</option> }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Fecha</label>
+                                <InputDate @bind-Value="factura.Fecha" class="form-control" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Observaciones</label>
+                                <InputTextArea @bind-Value="factura.Observaciones" class="form-control" rows="2" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card card-form shadow-sm mb-3">
+                    <div class="card-body">
+                        <AlertasEditor Alertas="factura.Alertas" />
+                    </div>
+                </div>
+
+                <div class="card card-form shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">
+                            <i class="bi bi-paperclip me-1"></i>Archivos adjuntos
+                        </h6>
+                        <SubidaMultiple
+                            Url1="@factura.Foto1Url" Url2="@factura.Foto2Url" Url3="@factura.Foto3Url"
+                            Url4="@factura.Foto4Url" Url5="@factura.Foto5Url" Url6="@factura.Foto6Url"
+                            Nombre1="@factura.Archivo1Nombre" Nombre2="@factura.Archivo2Nombre" Nombre3="@factura.Archivo3Nombre"
+                            Nombre4="@factura.Archivo4Nombre" Nombre5="@factura.Archivo5Nombre" Nombre6="@factura.Archivo6Nombre"
+                            OnArchivoChanged="OnArchivo" Carpeta="ampa/facturas" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card card-form shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">Estado de pago</h6>
+                        <div class="form-check form-switch mb-3">
+                            <InputCheckbox @bind-Value="factura.Pagado" class="form-check-input" id="chkPagado" />
+                            <label class="form-check-label" for="chkPagado">Factura pagada</label>
+                        </div>
+                        @if (factura.Pagado)
+                        {
+                            <label class="form-label">Fecha de pago</label>
+                            <InputDate @bind-Value="factura.FechaPago" class="form-control" />
+                        }
+                    </div>
+                </div>
+                <div class="d-grid gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary" disabled="@guardando">
+                        @if (guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-floppy me-1"></i>@(Id.HasValue ? "Guardar cambios" : "Registrar factura")
+                    </button>
+                    <a href="/facturas" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    Factura factura = new();
+    List<Proveedor> sugerencias = new();
+    bool mostrarSugerencias = false;
+    bool cargando  = true;
+    bool guardando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var e = await FacturaSvc.GetByIdAsync(Id.Value);
+            if (e != null) factura = e;
+            else Nav.NavigateTo("/facturas");
+        }
+        cargando = false;
+    }
+
+    async Task OnProveedorInput(ChangeEventArgs e)
+    {
+        factura.Proveedor = e.Value?.ToString() ?? string.Empty;
+        if (factura.Proveedor.Length >= 2)
+        {
+            var todos = await ProveedorSvc.GetTodosAsync();
+            sugerencias = todos.Where(p =>
+                p.Nombre.Contains(factura.Proveedor, StringComparison.OrdinalIgnoreCase))
+                .Take(6).ToList();
+            mostrarSugerencias = sugerencias.Any();
+        }
+        else { sugerencias.Clear(); mostrarSugerencias = false; }
+    }
+
+    void OnProveedorBlur()
+    {
+        Task.Delay(200).ContinueWith(_ => InvokeAsync(() => { mostrarSugerencias = false; StateHasChanged(); }));
+    }
+
+    void SeleccionarProveedor(Proveedor p)
+    {
+        factura.Proveedor     = p.Nombre;
+        factura.Categoria     = p.CategoriaHabitual ?? factura.Categoria;
+        factura.PorcentajeIVA = p.IVAHabitual;
+        Recalcular();
+        mostrarSugerencias = false;
+    }
+
+    void OnBaseChange(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+        { factura.BaseImponible = v; Recalcular(); }
+    }
+
+    void OnPctIVAChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v))
+        { factura.PorcentajeIVA = v; Recalcular(); }
+    }
+
+    void Recalcular()
+    {
+        factura.IVA = Math.Round(factura.BaseImponible * factura.PorcentajeIVA / 100, 2);
+        StateHasChanged();
+    }
+
+    void OnArchivo((int idx, string? url, string? nombre) a)
+    {
+        switch (a.idx)
+        {
+            case 0: factura.Foto1Url = a.url; factura.Archivo1Nombre = a.nombre; break;
+            case 1: factura.Foto2Url = a.url; factura.Archivo2Nombre = a.nombre; break;
+            case 2: factura.Foto3Url = a.url; factura.Archivo3Nombre = a.nombre; break;
+            case 3: factura.Foto4Url = a.url; factura.Archivo4Nombre = a.nombre; break;
+            case 4: factura.Foto5Url = a.url; factura.Archivo5Nombre = a.nombre; break;
+            case 5: factura.Foto6Url = a.url; factura.Archivo6Nombre = a.nombre; break;
+        }
+    }
+
+    async Task Guardar()
+    {
+        guardando = true;
+        foreach (var al in factura.Alertas)
+        { al.TipoEntidad = TipoEntidadAlerta.Factura; al.FacturaId = factura.Id > 0 ? factura.Id : null; }
+        try
+        {
+            if (Id.HasValue) { await FacturaSvc.ActualizarAsync(factura); Toast.ShowSuccess("Factura actualizada"); }
+            else             { await FacturaSvc.CrearAsync(factura);      Toast.ShowSuccess("Factura registrada"); }
+            Nav.NavigateTo("/facturas");
+        }
+        catch (Exception ex) { Toast.ShowError($"Error: {ex.Message}"); guardando = false; }
+    }
+}

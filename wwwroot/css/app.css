@@ -1,0 +1,82 @@
+/* ── Variables ── */
+:root {
+    --ampa-primary: #0d6efd;
+    --ampa-sidebar-width: 240px;
+}
+
+/* ── Nav lateral ── */
+.nav-link-ampa {
+    display: flex;
+    align-items: center;
+    color: #adb5bd;
+    padding: .45rem .75rem;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    text-decoration: none;
+    font-size: .9rem;
+    transition: background .15s, color .15s;
+}
+.nav-link-ampa:hover {
+    background: rgba(255,255,255,.08);
+    color: #fff;
+}
+.nav-link-ampa.active {
+    background: rgba(13,110,253,.25);
+    color: #6ea8fe;
+    font-weight: 500;
+}
+
+/* ── Cards de estadísticas ── */
+.stat-card {
+    border: none;
+    border-radius: 12px;
+    transition: transform .15s, box-shadow .15s;
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,.08) !important;
+}
+
+/* ── Tablas ── */
+.table-hover tbody tr:hover {
+    background: rgba(13,110,253,.04);
+}
+thead th {
+    font-size: .82rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #6c757d;
+    font-weight: 600;
+    border-top: none;
+}
+
+/* ── Badges de estado ── */
+.badge-pagado    { background-color: #d1fae5; color: #065f46; }
+.badge-pendiente { background-color: #fef3c7; color: #92400e; }
+.badge-exento    { background-color: #dbeafe; color: #1e40af; }
+.badge-baja      { background-color: #f3f4f6; color: #4b5563; }
+
+/* ── Formularios ── */
+.form-label { font-weight: 500; font-size: .9rem; }
+.card-form  { border: none; border-radius: 12px; }
+
+/* ── Barras de progreso categorías ── */
+.prog-bar-label {
+    font-size: .82rem;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    nav.d-flex { width: 60px !important; }
+    nav .nav-link-ampa span,
+    nav .fw-bold, nav small, nav .text-muted { display: none; }
+    .nav-link-ampa { justify-content: center; }
+    .nav-link-ampa i { margin: 0 !important; }
+}
+
+/* ── Utilidades ── */
+.cursor-pointer { cursor: pointer; }
+.text-money { font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace; }

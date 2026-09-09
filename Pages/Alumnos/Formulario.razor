@@ -1,0 +1,151 @@
+@page "/alumnos/nuevo"
+@page "/alumnos/{Id:int}/editar"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject AlumnoService AlumnoSvc
+@inject SocioService SocioSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>@(Id.HasValue ? "Editar alumno" : "Nuevo alumno") · AMPA Gestión</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/alumnos" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="fw-bold mb-0">@(Id.HasValue ? "Editar alumno" : "Nuevo alumno")</h4>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <EditForm Model="alumno" OnValidSubmit="Guardar">
+        <DataAnnotationsValidator />
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="card card-form shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">Datos del alumno</h6>
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label class="form-label">Nombre <span class="text-danger">*</span></label>
+                                <InputText @bind-Value="alumno.Nombre" class="form-control" placeholder="Pablo" />
+                                <ValidationMessage For="() => alumno.Nombre" class="text-danger small" />
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Apellidos</label>
+                                <InputText @bind-Value="alumno.Apellidos" class="form-control" placeholder="García López" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Grupo</label>
+                                <InputText @bind-Value="alumno.Grupo" class="form-control" placeholder="A" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Curso</label>
+                                <InputSelect @bind-Value="alumno.Curso" class="form-select">
+                                    @foreach (var c in Enum.GetValues<CursoEscolar>())
+                                    {
+                                        <option value="@c">@CursoDesc(c)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha de nacimiento</label>
+                                <InputDate @bind-Value="alumno.FechaNacimiento" class="form-control" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Alergias / intolerancias</label>
+                                <InputTextArea @bind-Value="alumno.Alergias" class="form-control" rows="2"
+                                              placeholder="Indicar si el alumno tiene alergias alimentarias u otras…" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Observaciones</label>
+                                <InputTextArea @bind-Value="alumno.Observaciones" class="form-control" rows="2" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card card-form shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.75rem">Familia asociada</h6>
+                        <label class="form-label">Socio / tutor <span class="text-danger">*</span></label>
+                        <select @bind="alumno.SocioId" class="form-select">
+                            <option value="0">— Seleccionar socio —</option>
+                            @foreach (var s in socios)
+                            {
+                                <option value="@s.Id">@s.NombreCompleto</option>
+                            }
+                        </select>
+                        @if (alumno.SocioId == 0)
+                        {
+                            <small class="text-danger">Debes asociar el alumno a un socio</small>
+                        }
+                    </div>
+                </div>
+                <div class="d-grid gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary" disabled="@(guardando || alumno.SocioId == 0)">
+                        @if (guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-floppy me-1"></i>
+                        @(Id.HasValue ? "Guardar cambios" : "Crear alumno")
+                    </button>
+                    <a href="/alumnos" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    [SupplyParameterFromQuery] public int? SocioId { get; set; }
+
+    Alumno alumno = new();
+    List<Socio> socios = new();
+    bool cargando = true;
+    bool guardando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        socios = await SocioSvc.GetTodosAsync();
+        if (Id.HasValue)
+        {
+            var existente = await AlumnoSvc.GetByIdAsync(Id.Value);
+            if (existente != null) alumno = existente;
+            else Nav.NavigateTo("/alumnos");
+        }
+        else if (SocioId.HasValue)
+        {
+            alumno.SocioId = SocioId.Value;
+        }
+        cargando = false;
+    }
+
+    async Task Guardar()
+    {
+        guardando = true;
+        try
+        {
+            if (Id.HasValue)
+            {
+                await AlumnoSvc.ActualizarAsync(alumno);
+                Toast.ShowSuccess("Alumno actualizado");
+            }
+            else
+            {
+                await AlumnoSvc.CrearAsync(alumno);
+                Toast.ShowSuccess("Alumno creado");
+            }
+            Nav.NavigateTo(alumno.SocioId > 0 ? $"/socios/{alumno.SocioId}" : "/alumnos");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Error: {ex.Message}");
+            guardando = false;
+        }
+    }
+
+    string CursoDesc(CursoEscolar c) => new Alumno { Curso = c }.CursoDescripcion;
+}

@@ -1,0 +1,182 @@
+@page "/alumnos"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject AlumnoService AlumnoSvc
+@inject NavigationManager Nav
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Alumnos · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0"><i class="bi bi-mortarboard me-2"></i>Alumnos</h4>
+    <div class="d-flex gap-2">
+        <BotonesExportar Titulo="Alumnos" Columnas="@colsAlumnos" Filas="@FilasAlumnos()" />
+        <a href="/alumnos/nuevo" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Nuevo alumno
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar por nombre o familia…"
+                           value="@busqueda"
+                           @oninput="OnBusquedaInput" />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select form-select-sm" @bind="filtroCurso" @bind:after="Buscar">
+                    <option value="">— Todos los cursos —</option>
+                    @foreach (var c in Enum.GetValues<CursoEscolar>())
+                    {
+                        <option value="@c">@CursoDesc(c)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">@alumnos.Count alumno@(alumnos.Count != 1 ? "s" : "")</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Alumno</th>
+                    <th>Curso</th>
+                    <th>Grupo</th>
+                    <th>Familia (socio)</th>
+                    <th>Estado familiar</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (cargando)
+                {
+                    <tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                }
+                else if (!alumnos.Any())
+                {
+                    <tr><td colspan="6" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>No hay alumnos que coincidan
+                    </td></tr>
+                }
+                else
+                {
+                    @foreach (var a in alumnos)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@a.NombreCompleto</div>
+                                @if (!string.IsNullOrEmpty(a.Alergias))
+                                {
+                                    <small class="text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>Alergias</small>
+                                }
+                            </td>
+                            <td>@a.CursoDescripcion</td>
+                            <td>@(a.Grupo ?? "—")</td>
+                            <td>
+                                <a href="/socios/@a.SocioId" class="text-decoration-none">
+                                    @a.Socio.NombreCompleto
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge @BadgeEstado(a.Socio.Estado)">@a.Socio.Estado</span>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a href="/alumnos/@a.Id/editar" class="btn btn-sm btn-outline-secondary py-0">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => ConfirmarEliminar(a)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (alumnoAEliminar != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-body text-center p-4">
+                    <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-3 d-block"></i>
+                    <p class="fw-semibold mb-1">¿Dar de baja al alumno?</p>
+                    <p class="text-muted mb-3" style="font-size:.9rem">@alumnoAEliminar.NombreCompleto</p>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => alumnoAEliminar = null">Cancelar</button>
+                        <button class="btn btn-danger btn-sm" @onclick="Eliminar">Dar de baja</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<Alumno> alumnos = new();
+    bool cargando = true;
+    string busqueda = "";
+    string filtroCurso = "";
+    Alumno? alumnoAEliminar;
+
+    protected override async Task OnInitializedAsync() => await Buscar();
+
+    async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        busqueda = e.Value?.ToString() ?? string.Empty;
+        await Buscar();
+    }
+
+    async Task Buscar()
+    {
+        cargando = true;
+        CursoEscolar? curso = Enum.TryParse<CursoEscolar>(filtroCurso, out var c) ? c : null;
+        alumnos = await AlumnoSvc.GetTodosAsync(busqueda, curso);
+        cargando = false;
+    }
+
+    void ConfirmarEliminar(Alumno a) => alumnoAEliminar = a;
+
+    async Task Eliminar()
+    {
+        if (alumnoAEliminar == null) return;
+        await AlumnoSvc.EliminarAsync(alumnoAEliminar.Id);
+        Toast.ShowSuccess($"Alumno {alumnoAEliminar.NombreCompleto} dado de baja");
+        alumnoAEliminar = null;
+        await Buscar();
+    }
+
+    string CursoDesc(CursoEscolar c) => new Alumno { Curso = c }.CursoDescripcion;
+
+    string BadgeEstado(EstadoPago e) => e switch
+    {
+        EstadoPago.Pagado    => "badge-pagado",
+        EstadoPago.Pendiente => "badge-pendiente",
+        EstadoPago.Exento    => "badge-exento",
+        _                    => "badge-baja"
+    };
+
+    static readonly string[] colsAlumnos = { "Nombre", "Apellidos", "Curso", "Grupo", "Familia", "Estado familia" };
+
+    object[][] FilasAlumnos() => alumnos.Select(a => new object[]
+    {
+        a.Nombre, a.Apellidos ?? "", a.CursoDescripcion, a.Grupo ?? "",
+        a.Socio.NombreCompleto, a.Socio.Estado.ToString()
+    }).ToArray();
+}

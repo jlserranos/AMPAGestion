@@ -1,0 +1,488 @@
+@page "/"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject SocioService SocioSvc
+@inject ContabilidadService ContSvc
+@inject SubvencionService SubSvc
+@inject PrevisionService PrevSvc
+
+<PageTitle>Dashboard · AMPA Gestión</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold">Dashboard</h4>
+        <small class="text-muted">@DateTime.Today.ToString("dddd, d MMMM yyyy")</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <label class="text-muted mb-0" style="font-size:.85rem">Curso:</label>
+        <select class="form-select form-select-sm" style="width:130px"
+                value="@cursoActivo" @onchange="OnCursoChange">
+            @foreach (var cur in CursoHelper.GetCursosDisponibles())
+            { <option value="@cur">@cur</option> }
+        </select>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <!-- Alertas urgentes -->
+    @if (alertasUrgentes.Any())
+    {
+        <div class="mb-3">
+            @foreach (var a in alertasUrgentes.Take(3))
+            {
+                <div class="alert @(a.EstaVencida ? "alert-danger" : "alert-warning") py-2 mb-2 d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-bell-fill me-2"></i>
+                        <strong>@a.Concepto</strong>
+                        <span class="ms-2" style="font-size:.85rem">
+                            — @a.EntidadTitulo ·
+                            @if (a.EstaVencida)
+                            { <span>Venció hace @Math.Abs(a.DiasRestantes) días</span> }
+                            else
+                            { <span>Vence en @a.DiasRestantes días (@a.FechaAlerta.ToString("dd/MM/yyyy"))</span> }
+                        </span>
+                    </div>
+                    <a href="@a.EntidadUrl" class="btn btn-sm btn-outline-secondary py-0">Ver</a>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- FILA 1: KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 p-3 bg-primary bg-opacity-10">
+                        <i class="bi bi-people-fill fs-4 text-primary"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted" style="font-size:.82rem">Total socios</div>
+                        <div class="fw-bold fs-3">@resumenSocios?.Total</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 p-3 bg-success bg-opacity-10">
+                        <i class="bi bi-check-circle-fill fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted" style="font-size:.82rem">Cuotas pagadas</div>
+                        <div class="fw-bold fs-3">@resumenSocios?.Pagados</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 p-3 bg-warning bg-opacity-10">
+                        <i class="bi bi-clock-fill fs-4 text-warning"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted" style="font-size:.82rem">Pendientes pago</div>
+                        <div class="fw-bold fs-3">@resumenSocios?.Pendientes</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 p-3 bg-danger bg-opacity-10">
+                        <i class="bi bi-receipt fs-4 text-danger"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted" style="font-size:.82rem">Facturas pendientes</div>
+                        <div class="fw-bold fs-3">@resumenCont?.FacturasPendientes</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILA 2: Resumen económico | Estado pagos | Subvenciones -->
+    <div class="row g-3 mb-4">
+
+        <!-- Resumen económico -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3">
+                        <i class="bi bi-wallet2 me-2 text-primary"></i>Resumen económico @cursoActivo
+                    </h6>
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">Ingresos cuotas</span>
+                        <span class="fw-semibold text-success text-money">@resumenCont?.TotalIngresos.ToString("C")</span>
+                    </div>
+                    @if (totalSubvenciones > 0)
+                    {
+                        <div class="d-flex justify-content-between py-2 border-bottom">
+                            <span class="text-muted">Subvenciones cobradas</span>
+                            <span class="fw-semibold text-success text-money">@totalSubvenciones.ToString("C")</span>
+                        </div>
+                    }
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">Gastos pagados</span>
+                        <span class="fw-semibold text-danger text-money">@resumenCont?.TotalGastos.ToString("C")</span>
+                    </div>
+                    @if (resumenCont?.GastosPendientes > 0)
+                    {
+                        <div class="d-flex justify-content-between py-2 border-bottom">
+                            <span class="text-muted">Gastos pendientes</span>
+                            <span class="fw-semibold text-warning text-money">@resumenCont.GastosPendientes.ToString("C")</span>
+                        </div>
+                    }
+                    <div class="d-flex justify-content-between py-2">
+                        <span class="fw-bold">Saldo @cursoActivo</span>
+                        <span class="fw-bold fs-5 text-money @(resumenCont?.Saldo >= 0 ? "text-success" : "text-danger")">
+                            @resumenCont?.Saldo.ToString("C")
+                        </span>
+                    </div>
+                    @if (resumenCont != null && resumenCont.SaldoAcumulado != resumenCont.Saldo)
+                    {
+                        <div class="d-flex justify-content-between pt-1 border-top">
+                            <span class="text-muted" style="font-size:.85rem">Saldo acumulado</span>
+                            <span class="fw-semibold text-money @(resumenCont.SaldoAcumulado >= 0 ? "text-success" : "text-danger")"
+                                  style="font-size:.85rem">
+                                @resumenCont.SaldoAcumulado.ToString("C")
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Estado pagos socios -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3">
+                        <i class="bi bi-pie-chart me-2 text-primary"></i>Estado de pagos · @cursoActivo
+                    </h6>
+                    @if (resumenSocios != null && resumenSocios.Total > 0)
+                    {
+                        var pct = (double)resumenSocios.Pagados / resumenSocios.Total * 100;
+                        <div class="text-center mb-3">
+                            <span class="display-5 fw-bold text-success">@pct.ToString("F0")%</span>
+                            <div class="text-muted" style="font-size:.82rem">socios al corriente</div>
+                        </div>
+                        <div class="progress mb-3" style="height:14px;border-radius:8px">
+                            <div class="progress-bar bg-success" style="width:@pct.ToString("F0")%"></div>
+                        </div>
+                        <div class="row g-2 text-center">
+                            <div class="col-4">
+                                <div class="fw-bold text-success fs-5">@resumenSocios.Pagados</div>
+                                <small class="text-muted">Pagados</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold text-warning fs-5">@resumenSocios.Pendientes</div>
+                                <small class="text-muted">Pendientes</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold text-info fs-5">@resumenSocios.Exentos</div>
+                                <small class="text-muted">Exentos</small>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Subvenciones -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-semibold mb-0">
+                            <i class="bi bi-cash-coin me-2 text-primary"></i>Subvenciones @cursoActivo
+                        </h6>
+                        <a href="/subvenciones" class="btn btn-outline-primary btn-sm py-0">Ver todas</a>
+                    </div>
+                    @if (!subvencionesDash.Any())
+                    {
+                        <p class="text-muted text-center py-3" style="font-size:.85rem">Sin subvenciones este curso</p>
+                        <div class="text-center">
+                            <a href="/subvenciones/nueva" class="btn btn-outline-success btn-sm">Añadir</a>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var s in subvencionesDash.Take(4))
+                        {
+                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                <div style="min-width:0">
+                                    <div class="fw-semibold text-truncate" style="font-size:.87rem">@s.Concepto</div>
+                                    <small class="text-muted">@s.OrigenDescripcion</small>
+                                </div>
+                                <div class="text-end ms-2 flex-shrink-0">
+                                    <div class="text-money text-success fw-semibold">@s.Importe.ToString("C")</div>
+                                    <span class="badge @(s.Cobrado ? "badge-pagado" : "badge-pendiente")" style="font-size:.7rem">
+                                        @(s.Cobrado ? "Cobrada" : "Pendiente")
+                                    </span>
+                                </div>
+                            </div>
+                        }
+                        @if (subvencionesDash.Count > 4)
+                        {
+                            <small class="text-muted d-block mt-1 text-center">+@(subvencionesDash.Count - 4) más</small>
+                        }
+                        <div class="d-flex justify-content-between pt-2 mt-1 border-top">
+                            <small class="text-muted">Total cobrado</small>
+                            <small class="fw-bold text-success text-money">
+                                @subvencionesDash.Where(s => s.Cobrado).Sum(s => s.Importe).ToString("C")
+                            </small>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILA 3: Previsiones | Alertas -->
+    <div class="row g-3 mb-4">
+
+        <!-- Previsiones -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-semibold mb-0">
+                            <i class="bi bi-bar-chart-steps me-2 text-primary"></i>Previsiones @cursoActivo
+                        </h6>
+                        <a href="@($"/previsiones/comparativa?anio={anioEconomico}")"
+                           class="btn btn-outline-primary btn-sm py-0">Detalle</a>
+                    </div>
+                    @if (comparativa == null || !comparativa.Detalle.Any())
+                    {
+                        <p class="text-muted text-center py-3" style="font-size:.85rem">Sin previsiones configuradas</p>
+                        <div class="text-center">
+                            <a href="@($"/previsiones/nueva?anio={anioEconomico}")"
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-plus me-1"></i>Crear previsión
+                            </a>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1" style="font-size:.82rem">
+                                <span class="text-success fw-semibold">Ingresos</span>
+                                <span class="text-money">@comparativa.RealIngresos.ToString("C") / @comparativa.PrevIngresos.ToString("C")</span>
+                            </div>
+                            @{ var pI = comparativa.PrevIngresos > 0 ? Math.Min((double)(comparativa.RealIngresos / comparativa.PrevIngresos * 100), 100) : 0; }
+                            <div class="progress mb-1" style="height:10px;border-radius:5px">
+                                <div class="progress-bar bg-success" style="width:@pI.ToString("F0")%"></div>
+                            </div>
+                            <small class="text-muted">@pI.ToString("F0")% ejecutado</small>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1" style="font-size:.82rem">
+                                <span class="text-danger fw-semibold">Gastos</span>
+                                <span class="text-money">@comparativa.RealGastos.ToString("C") / @comparativa.PrevGastos.ToString("C")</span>
+                            </div>
+                            @{ var pG = comparativa.PrevGastos > 0 ? Math.Min((double)(comparativa.RealGastos / comparativa.PrevGastos * 100), 100) : 0; }
+                            <div class="progress mb-1" style="height:10px;border-radius:5px">
+                                <div class="progress-bar bg-danger" style="width:@pG.ToString("F0")%"></div>
+                            </div>
+                            <small class="text-muted">@pG.ToString("F0")% ejecutado</small>
+                        </div>
+                        <div class="row g-2 pt-2 border-top text-center">
+                            <div class="col-6">
+                                <div class="text-muted" style="font-size:.78rem">Resultado previsto</div>
+                                <div class="fw-bold text-money @(comparativa.PrevSaldo >= 0 ? "text-success" : "text-danger")">
+                                    @comparativa.PrevSaldo.ToString("C")
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-muted" style="font-size:.78rem">Resultado real</div>
+                                <div class="fw-bold text-money @(comparativa.RealSaldo >= 0 ? "text-success" : "text-danger")">
+                                    @comparativa.RealSaldo.ToString("C")
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Alertas (2 columnas) -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-semibold mb-0">
+                            <i class="bi bi-bell me-2 text-warning"></i>Próximas alertas de plazos
+                        </h6>
+                        @if (todasAlertas.Any())
+                        {
+                            <span class="badge bg-warning text-dark">@todasAlertas.Count pendientes</span>
+                        }
+                    </div>
+                    @if (!todasAlertas.Any())
+                    {
+                        <p class="text-muted text-center py-4" style="font-size:.85rem">
+                            <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-2"></i>
+                            No hay alertas pendientes
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="row g-2">
+                            @foreach (var a in todasAlertas.Take(8))
+                            {
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center gap-2 p-2 rounded border
+                                        @(a.EstaVencida ? "border-danger bg-danger bg-opacity-10" :
+                                          a.EsUrgente   ? "border-warning bg-warning bg-opacity-10" : "")">
+                                        <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0
+                                            @(a.EstaVencida ? "bg-danger" : a.EsUrgente ? "bg-warning" : "bg-info") bg-opacity-20"
+                                             style="width:32px;height:32px">
+                                            <i class="bi bi-bell @(a.EstaVencida ? "text-danger" : a.EsUrgente ? "text-warning" : "text-info")"
+                                               style="font-size:.9rem"></i>
+                                        </div>
+                                        <div class="flex-grow-1" style="min-width:0">
+                                            <div class="fw-semibold text-truncate" style="font-size:.85rem">@a.Concepto</div>
+                                            <small class="text-muted text-truncate d-block" style="font-size:.75rem">
+                                                @a.EntidadTitulo
+                                            </small>
+                                        </div>
+                                        <div class="text-end flex-shrink-0 ms-1">
+                                            @if (a.EstaVencida)
+                                            {
+                                                <span class="badge bg-danger" style="font-size:.7rem">Vencida</span>
+                                            }
+                                            else
+                                            {
+                                                <div class="fw-semibold @(a.EsUrgente ? "text-warning" : "text-muted")"
+                                                     style="font-size:.82rem">@a.DiasRestantes d.</div>
+                                                <small class="text-muted" style="font-size:.72rem">
+                                                    @a.FechaAlerta.ToString("dd/MM")
+                                                </small>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        @if (todasAlertas.Count > 8)
+                        {
+                            <small class="text-muted d-block mt-2 text-center">
+                                +@(todasAlertas.Count - 8) alertas más
+                            </small>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILA 4: Acceso rápido -->
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3">
+                        <i class="bi bi-lightning me-2 text-warning"></i>Acceso rápido
+                    </h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <h6 class="text-muted text-uppercase" style="font-size:.72rem;letter-spacing:.05em">Socios</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a href="/socios/nuevo" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-person-plus me-1"></i>Nuevo socio
+                                </a>
+                                <a href="/socios?filtro=pendiente" class="btn btn-warning btn-sm">
+                                    <i class="bi bi-clock me-1"></i>Pendientes pago
+                                </a>
+                                <a href="/alumnos" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-mortarboard me-1"></i>Alumnos
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted text-uppercase" style="font-size:.72rem;letter-spacing:.05em">Economía</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a href="/facturas/nueva" class="btn btn-outline-danger btn-sm">
+                                    <i class="bi bi-receipt me-1"></i>Nueva factura
+                                </a>
+                                <a href="/subvenciones/nueva" class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-cash-coin me-1"></i>Nueva subvención
+                                </a>
+                                <a href="/contabilidad" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-bar-chart-line me-1"></i>Contabilidad
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted text-uppercase" style="font-size:.72rem;letter-spacing:.05em">Planificación</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a href="/previsiones" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-graph-up-arrow me-1"></i>Previsiones
+                                </a>
+                                <a href="/actividades/nueva" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-calendar-plus me-1"></i>Nueva actividad
+                                </a>
+                                <a href="/documentos/nuevo" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-file-earmark-plus me-1"></i>Nuevo documento
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    bool cargando = true;
+    string cursoActivo = CursoHelper.GetCursoActual();
+
+    // Año económico = año de inicio del curso (2024 para "2024-2025")
+    int anioEconomico => CursoHelper.GetAnioInicioCurso(cursoActivo);
+
+    ResumenSocios?        resumenSocios    = null;
+    ResumenContable?      resumenCont      = null;
+    List<Subvencion>      subvencionesDash = new();
+    List<AlertaFecha>     todasAlertas     = new();
+    List<AlertaFecha>     alertasUrgentes  = new();
+    ComparativaPrevision? comparativa      = null;
+    decimal totalSubvenciones = 0;
+
+    protected override async Task OnInitializedAsync()
+        => await CargarDatos();
+
+    async Task OnCursoChange(ChangeEventArgs e)
+    {
+        cursoActivo = e.Value?.ToString() ?? CursoHelper.GetCursoActual();
+        await CargarDatos();
+    }
+
+    async Task CargarDatos()
+    {
+        cargando = true;
+        resumenSocios = await SocioSvc.GetResumenAsync(cursoActivo);
+        resumenCont   = await ContSvc.GetResumenAsync(anioEconomico);
+
+        var todasSub = await SubSvc.GetTodasAsync();
+        subvencionesDash  = todasSub
+            .Where(s => CursoHelper.GetCursoDeFecha(s.Fecha) == cursoActivo)
+            .ToList();
+        totalSubvenciones = subvencionesDash.Where(s => s.Cobrado).Sum(s => s.Importe);
+
+        todasAlertas    = await SubSvc.GetAlertasPendientesAsync();
+        alertasUrgentes = todasAlertas.Where(a => a.EsUrgente || a.EstaVencida).ToList();
+
+        comparativa = await PrevSvc.GetComparativaAsync(anioEconomico);
+        cargando = false;
+    }
+}

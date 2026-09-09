@@ -1,0 +1,29 @@
+@using AMPAGestion.Models
+
+<div class="d-flex align-items-center gap-2">
+    <label class="text-muted mb-0" style="font-size:.85rem">Curso:</label>
+    <select class="form-select form-select-sm" style="width:130px"
+            value="@Curso" @onchange="OnChange">
+        @if (MostrarTodos)
+        {
+            <option value="">Todos los cursos</option>
+        }
+        @foreach (var c in Cursos ?? CursoHelper.GetCursosDisponibles())
+        {
+            <option value="@c">@c</option>
+        }
+    </select>
+</div>
+
+@code {
+    [Parameter] public string Curso           { get; set; } = CursoHelper.GetCursoActual();
+    [Parameter] public EventCallback<string>  CursoChanged  { get; set; }
+    [Parameter] public List<string>?          Cursos        { get; set; }
+    [Parameter] public bool                   MostrarTodos  { get; set; } = false;
+
+    async Task OnChange(ChangeEventArgs e)
+    {
+        Curso = e.Value?.ToString() ?? CursoHelper.GetCursoActual();
+        await CursoChanged.InvokeAsync(Curso);
+    }
+}
