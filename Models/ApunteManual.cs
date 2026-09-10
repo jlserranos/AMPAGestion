@@ -2,16 +2,18 @@ using System.ComponentModel.DataAnnotations;
 
 namespace AMPAGestion.Models;
 
+public enum TipoApunte { Ingreso, Gasto }
+
 public enum TipoApunteManual
 {
-    AperturaEjercicio,    // Saldo inicial del curso
-    CierreEjercicio,      // Cierre del curso
-    ComisionBancaria,     // Gastos bancarios
-    InteresesBancarios,   // Ingresos por intereses
-    Devolucion,           // Devolución de pago
-    Ajuste,               // Corrección/ajuste contable
-    Transferencia,        // Transferencia entre cuentas
-    Otro                  // Cualquier otro apunte
+    AperturaEjercicio,
+    CierreEjercicio,
+    ComisionBancaria,
+    InteresesBancarios,
+    Devolucion,
+    Ajuste,
+    Transferencia,
+    Otro
 }
 
 public class ApunteManual
@@ -40,7 +42,6 @@ public class ApunteManual
     [MaxLength(100)]
     public string? Referencia { get; set; }
 
-    // Generado automáticamente en cierres y aperturas
     public bool EsAutomatico { get; set; } = false;
 
     public string TipoOperacionDescripcion => TipoOperacion switch

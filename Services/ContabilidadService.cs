@@ -259,8 +259,6 @@ public class MovimientoMensual
     public string NombreMes => new DateTime(Anio, Mes, 1).ToString("MMM yyyy");
 }
 
-public enum TipoApunte { Ingreso, Gasto }
-
 public class ApunteContable
 {
     public DateTime Fecha           { get; set; }
