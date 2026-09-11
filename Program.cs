@@ -66,6 +66,7 @@ builder.Services.AddScoped<SubvencionService>();
 builder.Services.AddScoped<PrevisionService>();
 builder.Services.AddScoped<ImagenService>();
 builder.Services.AddScoped<ExportService>();
+builder.Services.AddScoped<ContabilidadOperacionesService>();
 
 builder.Services.AddBlazoredToast();
 
