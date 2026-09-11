@@ -29,7 +29,6 @@
 }
 else
 {
-    <!-- Alertas urgentes -->
     @if (alertasUrgentes.Any())
     {
         <div class="mb-3">
@@ -111,8 +110,6 @@ else
 
     <!-- FILA 2: Resumen económico | Estado pagos | Subvenciones -->
     <div class="row g-3 mb-4">
-
-        <!-- Resumen económico -->
         <div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
@@ -161,7 +158,6 @@ else
             </div>
         </div>
 
-        <!-- Estado pagos socios -->
         <div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
@@ -197,7 +193,6 @@ else
             </div>
         </div>
 
-        <!-- Subvenciones -->
         <div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
@@ -232,9 +227,7 @@ else
                             </div>
                         }
                         @if (subvencionesDash.Count > 4)
-                        {
-                            <small class="text-muted d-block mt-1 text-center">+@(subvencionesDash.Count - 4) más</small>
-                        }
+                        { <small class="text-muted d-block mt-1 text-center">+@(subvencionesDash.Count - 4) más</small> }
                         <div class="d-flex justify-content-between pt-2 mt-1 border-top">
                             <small class="text-muted">Total cobrado</small>
                             <small class="fw-bold text-success text-money">
@@ -249,8 +242,6 @@ else
 
     <!-- FILA 3: Previsiones | Alertas -->
     <div class="row g-3 mb-4">
-
-        <!-- Previsiones -->
         <div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
@@ -258,15 +249,14 @@ else
                         <h6 class="fw-semibold mb-0">
                             <i class="bi bi-bar-chart-steps me-2 text-primary"></i>Previsiones @cursoActivo
                         </h6>
-                        <a href="@($"/previsiones/comparativa?anio={anioEconomico}")"
+                        <a href="/previsiones/comparativa?anio=@anioEconomico"
                            class="btn btn-outline-primary btn-sm py-0">Detalle</a>
                     </div>
                     @if (comparativa == null || !comparativa.Detalle.Any())
                     {
                         <p class="text-muted text-center py-3" style="font-size:.85rem">Sin previsiones configuradas</p>
                         <div class="text-center">
-                            <a href="@($"/previsiones/nueva?anio={anioEconomico}")"
-                               class="btn btn-outline-primary btn-sm">
+                            <a href="/previsiones/nueva?anio=@anioEconomico" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-plus me-1"></i>Crear previsión
                             </a>
                         </div>
@@ -314,7 +304,6 @@ else
             </div>
         </div>
 
-        <!-- Alertas (2 columnas) -->
         <div class="col-lg-8">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
@@ -323,9 +312,7 @@ else
                             <i class="bi bi-bell me-2 text-warning"></i>Próximas alertas de plazos
                         </h6>
                         @if (todasAlertas.Any())
-                        {
-                            <span class="badge bg-warning text-dark">@todasAlertas.Count pendientes</span>
-                        }
+                        { <span class="badge bg-warning text-dark">@todasAlertas.Count pendientes</span> }
                     </div>
                     @if (!todasAlertas.Any())
                     {
@@ -357,9 +344,7 @@ else
                                         </div>
                                         <div class="text-end flex-shrink-0 ms-1">
                                             @if (a.EstaVencida)
-                                            {
-                                                <span class="badge bg-danger" style="font-size:.7rem">Vencida</span>
-                                            }
+                                            { <span class="badge bg-danger" style="font-size:.7rem">Vencida</span> }
                                             else
                                             {
                                                 <div class="fw-semibold @(a.EsUrgente ? "text-warning" : "text-muted")"
@@ -374,11 +359,7 @@ else
                             }
                         </div>
                         @if (todasAlertas.Count > 8)
-                        {
-                            <small class="text-muted d-block mt-2 text-center">
-                                +@(todasAlertas.Count - 8) alertas más
-                            </small>
-                        }
+                        { <small class="text-muted d-block mt-2 text-center">+@(todasAlertas.Count - 8) alertas más</small> }
                     }
                 </div>
             </div>
@@ -444,10 +425,10 @@ else
 }
 
 @code {
-    bool cargando = true;
+    bool cargando  = true;
     string cursoActivo = CursoHelper.GetCursoActual();
 
-    // Año económico = año de inicio del curso (2024 para "2024-2025")
+    // anioEconomico es int — usado solo para PrevisionService que sigue usando int
     int anioEconomico => CursoHelper.GetAnioInicioCurso(cursoActivo);
 
     ResumenSocios?        resumenSocios    = null;
@@ -470,8 +451,12 @@ else
     async Task CargarDatos()
     {
         cargando = true;
+
+        // SocioService.GetResumenAsync(string curso) → string ✓
         resumenSocios = await SocioSvc.GetResumenAsync(cursoActivo);
-        resumenCont   = await ContSvc.GetResumenAsync(anioEconomico);
+
+        // ContabilidadService.GetResumenAsync(string? curso) → string ✓
+        resumenCont = await ContSvc.GetResumenAsync(cursoActivo);
 
         var todasSub = await SubSvc.GetTodasAsync();
         subvencionesDash  = todasSub
@@ -482,7 +467,9 @@ else
         todasAlertas    = await SubSvc.GetAlertasPendientesAsync();
         alertasUrgentes = todasAlertas.Where(a => a.EsUrgente || a.EstaVencida).ToList();
 
+        // PrevisionService.GetComparativaAsync(int anio) → int ✓
         comparativa = await PrevSvc.GetComparativaAsync(anioEconomico);
+
         cargando = false;
     }
 }
