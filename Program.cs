@@ -2,6 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using AMPAGestion.Data;
 using AMPAGestion.Services;
 using Blazored.Toast;
+using System.Globalization;
+
+var culture = new CultureInfo("es-ES");
+CultureInfo.DefaultThreadCurrentCulture = culture;
+CultureInfo.DefaultThreadCurrentUICulture = culture;
 
 // Necesario para que Npgsql acepte DateTime sin zona horaria explícita
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
