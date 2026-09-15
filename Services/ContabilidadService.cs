@@ -299,3 +299,134 @@ public class ApunteContable
     public string     Origen          { get; set; } = "";
     public int        OrigenId        { get; set; }
 }
+
+// ── Operaciones contables (apuntes manuales, apertura, cierre) ────────────
+public class ContabilidadOperacionesService
+{
+    private readonly IDbContextFactory<ApplicationDbContext> _factory;
+
+    public ContabilidadOperacionesService(IDbContextFactory<ApplicationDbContext> factory)
+        => _factory = factory;
+
+    public async Task<List<ApunteManual>> GetApuntesManualesAsync(string curso)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.ApuntesManuales
+            .Where(a => a.CursoAcademico == curso)
+            .OrderByDescending(a => a.Fecha)
+            .ToListAsync();
+    }
+
+    public async Task<ApunteManual> GuardarApunteAsync(ApunteManual apunte)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        if (apunte.Id == 0) db.ApuntesManuales.Add(apunte);
+        else db.ApuntesManuales.Update(apunte);
+        await db.SaveChangesAsync();
+        return apunte;
+    }
+
+    public async Task EliminarApunteAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var a = await db.ApuntesManuales.FindAsync(id);
+        if (a != null) { db.ApuntesManuales.Remove(a); await db.SaveChangesAsync(); }
+    }
+
+    public async Task<ApunteManual> AperturaEjercicioAsync(string cursoNuevo)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+
+        var existe = await db.ApuntesManuales.AnyAsync(a =>
+            a.CursoAcademico == cursoNuevo &&
+            a.TipoOperacion  == TipoApunteManual.AperturaEjercicio);
+        if (existe)
+            throw new InvalidOperationException($"Ya existe una apertura para el curso {cursoNuevo}.");
+
+        var cursos     = CursoHelper.GetCursosDisponibles();
+        var idx        = cursos.IndexOf(cursoNuevo);
+        if (idx < 0 || idx >= cursos.Count - 1)
+            throw new InvalidOperationException("No se puede determinar el curso anterior.");
+
+        var cursoAnt   = cursos[idx + 1];
+        var saldoAnt   = await CalcularSaldoCursoAsync(db, cursoAnt);
+
+        var apertura = new ApunteManual
+        {
+            Concepto       = $"Apertura {cursoNuevo} — saldo de {cursoAnt}",
+            Fecha          = CursoHelper.GetFechaInicio(cursoNuevo),
+            CursoAcademico = cursoNuevo,
+            Tipo           = saldoAnt >= 0 ? TipoApunte.Ingreso : TipoApunte.Gasto,
+            TipoOperacion  = TipoApunteManual.AperturaEjercicio,
+            Importe        = Math.Abs(saldoAnt),
+            Referencia     = $"Saldo {cursoAnt}",
+            EsAutomatico   = true
+        };
+
+        db.ApuntesManuales.Add(apertura);
+        await db.SaveChangesAsync();
+        return apertura;
+    }
+
+    public async Task<ResumenCierre> CierreEjercicioAsync(string curso)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+
+        var saldo  = await CalcularSaldoCursoAsync(db, curso);
+        var desde  = CursoHelper.GetFechaInicio(curso);
+        var hasta  = CursoHelper.GetFechaFin(curso);
+
+        var cierre = new ApunteManual
+        {
+            Concepto       = $"Cierre de ejercicio {curso}",
+            Descripcion    = $"Saldo final: {saldo:C}",
+            Fecha          = CursoHelper.GetFechaFin(curso),
+            CursoAcademico = curso,
+            Tipo           = TipoApunte.Ingreso,
+            TipoOperacion  = TipoApunteManual.CierreEjercicio,
+            Importe        = Math.Abs(saldo),
+            Referencia     = $"Cierre {curso}",
+            EsAutomatico   = true
+        };
+        db.ApuntesManuales.Add(cierre);
+        await db.SaveChangesAsync();
+
+        var totalCuotas   = await db.Cuotas.Where(c => c.Fecha >= desde && c.Fecha <= hasta).SumAsync(c => c.Importe);
+        var totalSubs     = await db.Subvenciones.Where(s => s.Cobrado && s.Fecha >= desde && s.Fecha <= hasta).SumAsync(s => s.Importe);
+        var ingManuales   = await db.ApuntesManuales.Where(a => a.CursoAcademico == curso && a.Tipo == TipoApunte.Ingreso && a.TipoOperacion != TipoApunteManual.CierreEjercicio).SumAsync(a => a.Importe);
+        var totalFacturas = await db.Facturas.Where(f => f.Pagado && f.Fecha >= desde && f.Fecha <= hasta).SumAsync(f => f.BaseImponible + f.IVA);
+        var gasManuales   = await db.ApuntesManuales.Where(a => a.CursoAcademico == curso && a.Tipo == TipoApunte.Gasto).SumAsync(a => a.Importe);
+
+        return new ResumenCierre
+        {
+            Curso         = curso,
+            TotalIngresos = totalCuotas + totalSubs + ingManuales,
+            TotalGastos   = totalFacturas + gasManuales,
+            SaldoFinal    = saldo,
+            FechaCierre   = DateTime.Today
+        };
+    }
+
+    private async Task<decimal> CalcularSaldoCursoAsync(ApplicationDbContext db, string curso)
+    {
+        var desde = CursoHelper.GetFechaInicio(curso);
+        var hasta = CursoHelper.GetFechaFin(curso);
+
+        var ing = await db.Cuotas.Where(c => c.Fecha >= desde && c.Fecha <= hasta).SumAsync(c => c.Importe)
+                + await db.Subvenciones.Where(s => s.Cobrado && s.Fecha >= desde && s.Fecha <= hasta).SumAsync(s => s.Importe)
+                + await db.ApuntesManuales.Where(a => a.CursoAcademico == curso && a.Tipo == TipoApunte.Ingreso && a.TipoOperacion != TipoApunteManual.CierreEjercicio).SumAsync(a => a.Importe);
+        var gas = await db.Facturas.Where(f => f.Pagado && f.Fecha >= desde && f.Fecha <= hasta).SumAsync(f => f.BaseImponible + f.IVA)
+                + await db.ApuntesManuales.Where(a => a.CursoAcademico == curso && a.Tipo == TipoApunte.Gasto).SumAsync(a => a.Importe);
+
+        return ing - gas;
+    }
+}
+
+public class ResumenCierre
+{
+    public string   Curso         { get; set; } = "";
+    public decimal  TotalIngresos { get; set; }
+    public decimal  TotalGastos   { get; set; }
+    public decimal  SaldoFinal    { get; set; }
+    public DateTime FechaCierre   { get; set; }
+}
