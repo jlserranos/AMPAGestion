@@ -1,6 +1,6 @@
 // ── Imprimir etiquetas de alumnos ──────────────────────────────────────────
 window.imprimirEtiquetas = function(
-    nombres, titulo, textoAdicional,
+    nombres, subtitulos, titulo, textoAdicional,
     anchoMm, altoMm, columnas,
     tamTitulo, tamNombre,
     imgIzqData, imgFondoData, opacidadFondo
@@ -31,7 +31,8 @@ window.imprimirEtiquetas = function(
         `margin:${gap / 2}px`
     ].join(';');
 
-    const etiquetasHTML = nombres.map(nombre => {
+    const etiquetasHTML = nombres.map((nombre, i) => {
+        const subtitulo = subtitulos && subtitulos[i] ? subtitulos[i] : '';
 
         // Fondo: usar <img> con posición absoluta en lugar de background-image
         // Los navegadores siempre imprimen <img> aunque tengan desactivada
@@ -67,10 +68,19 @@ window.imprimirEtiquetas = function(
                            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                            ${nombre}</div>`
                     : ''}
+                ${subtitulo
+                    ? `<div style="font-size:${Math.max(7, tamNombre - 2)}px;
+                           color:#555;line-height:1.2;
+                           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                           ${subtitulo}</div>`
+                    : ''}
                 ${textoAdicional
                     ? `<div style="font-size:${Math.max(7, tamNombre - 2)}px;
-                           color:#555;margin-top:1px;line-height:1.2;
-                           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                           color:#444;margin-top:1px;line-height:1.25;
+                           overflow:hidden;
+                           display:-webkit-box;
+                           -webkit-line-clamp:2;
+                           -webkit-box-orient:vertical;">
                            ${textoAdicional}</div>`
                     : ''}
             </div>`;

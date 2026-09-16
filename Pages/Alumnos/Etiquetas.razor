@@ -114,6 +114,7 @@
                         <option value="nombre">Solo nombre</option>
                         <option value="apellidos">Solo apellidos</option>
                         <option value="completo">Nombre completo</option>
+                        <option value="completocurso">Nombre completo + curso</option>
                         <option value="ninguno">No mostrar nombre</option>
                     </select>
                 </div>
@@ -250,9 +251,16 @@
                                                 @nombre
                                             </div>
                                         }
+                                        @{ var subtitulo = ObtenerSubtituloEtiqueta(alumno); }
+                                        @if (!string.IsNullOrEmpty(subtitulo))
+                                        {
+                                            <div style="font-size:@(Math.Max(6, tamanoNombre * 0.55))px;color:#555;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                                @subtitulo
+                                            </div>
+                                        }
                                         @if (!string.IsNullOrEmpty(textAdicional))
                                         {
-                                            <div style="font-size:@(Math.Max(6, tamanoNombre * 0.55))px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                            <div style="font-size:@(Math.Max(6, tamanoNombre * 0.55))px;color:#444;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">
                                                 @textAdicional
                                             </div>
                                         }
@@ -338,11 +346,16 @@
 
     string ObtenerNombreEtiqueta(Alumno a) => modoNombre switch
     {
-        "nombre"    => a.Nombre,
-        "apellidos" => a.Apellidos ?? string.Empty,
-        "completo"  => $"{a.Nombre} {a.Apellidos}",
-        _           => string.Empty
+        "nombre"        => a.Nombre,
+        "apellidos"     => a.Apellidos ?? string.Empty,
+        "completo"      => $"{a.Nombre} {a.Apellidos}",
+        "completocurso" => $"{a.Nombre} {a.Apellidos}",
+        _               => string.Empty
     };
+
+    string ObtenerSubtituloEtiqueta(Alumno a) => modoNombre == "completocurso"
+        ? a.CursoDescripcion
+        : string.Empty;
 
     async Task CargarImgIzq(InputFileChangeEventArgs e)
     {
@@ -366,13 +379,15 @@
 
     async Task Imprimir()
     {
-        var nombres = todosAlumnos
+        var alumnos = todosAlumnos
             .Where(a => alumnosSeleccionados.Contains(a.Id))
-            .Select(ObtenerNombreEtiqueta)
-            .ToArray();
+            .ToList();
+
+        var nombres    = alumnos.Select(ObtenerNombreEtiqueta).ToArray();
+        var subtitulos = alumnos.Select(ObtenerSubtituloEtiqueta).ToArray();
 
         await JS.InvokeVoidAsync("imprimirEtiquetas",
-            nombres, textTitulo, textAdicional,
+            nombres, subtitulos, textTitulo, textAdicional,
             anchoMm, altoMm, columnasPagina,
             tamanoTitulo, tamanoNombre,
             imgIzqData, imgFondoData, opacidadFondo);
