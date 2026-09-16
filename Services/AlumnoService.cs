@@ -11,24 +11,28 @@ public class AlumnoService
     public AlumnoService(IDbContextFactory<ApplicationDbContext> factory)
         => _factory = factory;
 
-    public async Task<List<Alumno>> GetTodosAsync(string? busqueda = null, CursoEscolar? curso = null)
+    public async Task<List<Alumno>> GetTodosAsync(string? busqueda = null, string? curso = null)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var q = db.Alumnos.Include(a => a.Socio).Where(a => a.Activo).AsQueryable();
+        var q = db.Alumnos.Include(a => a.Socio).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(busqueda))
         {
             busqueda = busqueda.ToLower();
-            q = q.Where(a =>
-                a.Nombre.ToLower().Contains(busqueda) ||
-                (a.Apellidos != null && a.Apellidos.ToLower().Contains(busqueda)) ||
-                a.Socio.Apellidos.ToLower().Contains(busqueda));
+            q = q.Where(a => a.Nombre.ToLower().Contains(busqueda) ||
+                             (a.Apellidos != null && a.Apellidos.ToLower().Contains(busqueda)));
+        }
+        if (!string.IsNullOrEmpty(curso))
+        {
+            // Filtrar por alumnos activos cuyo socio tiene cuota en ese curso
+            q = q.Where(a => a.Activo);
+        }
+        else
+        {
+            q = q.Where(a => a.Activo);
         }
 
-        if (curso.HasValue)
-            q = q.Where(a => a.Curso == curso.Value);
-
-        return await q.OrderBy(a => a.Socio.Apellidos).ThenBy(a => a.Nombre).ToListAsync();
+        return await q.OrderBy(a => a.Apellidos).ThenBy(a => a.Nombre).ToListAsync();
     }
 
     public async Task<Alumno?> GetByIdAsync(int id)
@@ -55,11 +59,7 @@ public class AlumnoService
     public async Task EliminarAsync(int id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var alumno = await db.Alumnos.FindAsync(id);
-        if (alumno != null)
-        {
-            alumno.Activo = false; // Baja lógica
-            await db.SaveChangesAsync();
-        }
+        var a = await db.Alumnos.FindAsync(id);
+        if (a != null) { db.Alumnos.Remove(a); await db.SaveChangesAsync(); }
     }
 }

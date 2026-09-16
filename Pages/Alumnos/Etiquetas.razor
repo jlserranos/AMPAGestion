@@ -1,0 +1,391 @@
+@page "/alumnos/etiquetas"
+@using AMPAGestion.Services
+@using AMPAGestion.Models
+@inject AlumnoService AlumnoSvc
+@inject IJSRuntime JS
+@inject Blazored.Toast.Services.IToastService Toast
+
+<PageTitle>Imprimir etiquetas · AMPA Gestión</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/alumnos" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="fw-bold mb-0"><i class="bi bi-tag me-2"></i>Imprimir etiquetas de alumnos</h4>
+</div>
+
+<div class="row g-3">
+
+    <!-- Panel izquierdo: configuración -->
+    <div class="col-lg-5">
+
+        <!-- Selección de alumnos -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-semibold mb-0">
+                        <i class="bi bi-people me-2 text-primary"></i>Alumnos
+                        <span class="badge bg-primary ms-1">@alumnosSeleccionados.Count seleccionados</span>
+                    </h6>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" @onclick="SeleccionarTodos">Todos</button>
+                        <button class="btn btn-outline-secondary" @onclick="SeleccionarNinguno">Ninguno</button>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Filtrar alumnos..."
+                               value="@filtroAlumnos" @oninput="OnFiltroInput" />
+                    </div>
+                </div>
+
+                <div style="max-height:280px;overflow-y:auto" class="border rounded p-2">
+                    @foreach (var a in alumnosFiltrados)
+                    {
+                        <div class="d-flex align-items-center gap-2 py-1 border-bottom">
+                            <input type="checkbox" class="form-check-input mt-0"
+                                   checked="@alumnosSeleccionados.Contains(a.Id)"
+                                   @onchange="() => ToggleAlumno(a.Id)" />
+                            <div style="font-size:.88rem">
+                                <span class="fw-semibold">@a.Nombre @a.Apellidos</span>
+                                <small class="text-muted ms-1">@a.CursoDescripcion</small>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Tamaño de etiqueta -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <h6 class="fw-semibold mb-3">
+                    <i class="bi bi-rulers me-2 text-primary"></i>Tamaño de etiqueta
+                </h6>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="form-label" style="font-size:.82rem">Ancho (mm)</label>
+                        <input type="number" class="form-control form-control-sm" @bind="anchoMm" min="30" max="210" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" style="font-size:.82rem">Alto (mm)</label>
+                        <input type="number" class="form-control form-control-sm" @bind="altoMm" min="15" max="150" />
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" style="font-size:.82rem">Tamaños predefinidos</label>
+                    <div class="d-flex gap-1 flex-wrap">
+                        <button class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.78rem"
+                                @onclick="() => SetTamano(90, 55)">Tarjeta (90×55)</button>
+                        <button class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.78rem"
+                                @onclick="() => SetTamano(70, 37)">Estándar (70×37)</button>
+                        <button class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.78rem"
+                                @onclick="() => SetTamano(105, 74)">Grande (105×74)</button>
+                        <button class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.78rem"
+                                @onclick="() => SetTamano(50, 50)">Cuadrada (50×50)</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label" style="font-size:.82rem">Columnas por página</label>
+                    <select class="form-select form-select-sm" @bind="columnasPagina">
+                        <option value="1">1 columna</option>
+                        <option value="2">2 columnas</option>
+                        <option value="3">3 columnas</option>
+                        <option value="4">4 columnas</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Texto -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <h6 class="fw-semibold mb-3">
+                    <i class="bi bi-fonts me-2 text-primary"></i>Texto de la etiqueta
+                </h6>
+                <div class="mb-2">
+                    <label class="form-label" style="font-size:.82rem">Título principal</label>
+                    <input type="text" class="form-control form-control-sm" @bind="textTitulo"
+                           placeholder="Ej: BOCADILLO DE QUESO · AMPA" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" style="font-size:.82rem">Subtítulo (nombre del alumno)</label>
+                    <select class="form-select form-select-sm" @bind="modoNombre">
+                        <option value="nombre">Solo nombre</option>
+                        <option value="apellidos">Solo apellidos</option>
+                        <option value="completo">Nombre completo</option>
+                        <option value="ninguno">No mostrar nombre</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" style="font-size:.82rem">Texto adicional</label>
+                    <textarea class="form-control form-control-sm" rows="2" @bind="textAdicional"
+                              placeholder="Ej: Excursión fin de curso · 15 junio 2025"></textarea>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label" style="font-size:.82rem">Tamaño texto título</label>
+                        <input type="range" class="form-range" min="8" max="24" @bind="tamanoTitulo" />
+                        <small class="text-muted">@tamanoTitulo px</small>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" style="font-size:.82rem">Tamaño nombre</label>
+                        <input type="range" class="form-range" min="8" max="24" @bind="tamanoNombre" />
+                        <small class="text-muted">@tamanoNombre px</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Imágenes -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <h6 class="fw-semibold mb-3">
+                    <i class="bi bi-image me-2 text-primary"></i>Imágenes
+                </h6>
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:.82rem">
+                        <i class="bi bi-image-fill me-1 text-primary"></i>Imagen izquierda (logo, icono...)
+                    </label>
+                    @if (!string.IsNullOrEmpty(imgIzqData))
+                    {
+                        <div class="d-flex align-items-center gap-2">
+                            <img src="@imgIzqData" style="height:40px;border-radius:4px" alt="Logo" />
+                            <button class="btn btn-sm btn-outline-danger py-0"
+                                    @onclick="() => { imgIzqData = ''; }">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <label class="btn btn-sm btn-outline-secondary w-100 cursor-pointer">
+                            <i class="bi bi-upload me-1"></i>Subir imagen
+                            <InputFile OnChange="CargarImgIzq" accept="image/*" class="d-none" />
+                        </label>
+                    }
+                </div>
+                <div>
+                    <label class="form-label" style="font-size:.82rem">
+                        <i class="bi bi-layers me-1 text-secondary"></i>Imagen de fondo (difuminada)
+                    </label>
+                    @if (!string.IsNullOrEmpty(imgFondoData))
+                    {
+                        <div class="d-flex align-items-center gap-2">
+                            <img src="@imgFondoData" style="height:40px;border-radius:4px;opacity:.5" alt="Fondo" />
+                            <button class="btn btn-sm btn-outline-danger py-0"
+                                    @onclick="() => { imgFondoData = ''; }">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label" style="font-size:.82rem">Opacidad del fondo</label>
+                            <input type="range" class="form-range" min="5" max="50" @bind="opacidadFondo" />
+                            <small class="text-muted">@opacidadFondo%</small>
+                        </div>
+                    }
+                    else
+                    {
+                        <label class="btn btn-sm btn-outline-secondary w-100 cursor-pointer">
+                            <i class="bi bi-upload me-1"></i>Subir imagen de fondo
+                            <InputFile OnChange="CargarImgFondo" accept="image/*" class="d-none" />
+                        </label>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Botón imprimir -->
+        <button class="btn btn-primary w-100 btn-lg"
+                @onclick="Imprimir"
+                disabled="@(alumnosSeleccionados.Count == 0)">
+            <i class="bi bi-printer me-2"></i>
+            Imprimir @alumnosSeleccionados.Count etiqueta@(alumnosSeleccionados.Count != 1 ? "s" : "")
+        </button>
+    </div>
+
+    <!-- Panel derecho: previsualización -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <h6 class="fw-semibold mb-3">
+                    <i class="bi bi-eye me-2 text-primary"></i>Previsualización
+                    <small class="text-muted fw-normal">(tamaño aproximado)</small>
+                </h6>
+
+                @if (alumnosSeleccionados.Count == 0)
+                {
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-tag fs-1 d-block mb-2 opacity-25"></i>
+                        Selecciona alumnos para previsualizar las etiquetas
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap gap-2 justify-content-start">
+                        @foreach (var id in alumnosSeleccionados.Take(6))
+                        {
+                            var alumno = todosAlumnos.FirstOrDefault(a => a.Id == id);
+                            if (alumno == null) continue;
+                            var nombre = ObtenerNombreEtiqueta(alumno);
+
+                            <div style="@EstiloEtiquetaPreview() position:relative;overflow:hidden;border:1px solid #dee2e6;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+                                @if (!string.IsNullOrEmpty(imgFondoData))
+                                {
+                                    <div style="position:absolute;inset:0;background-image:url('@imgFondoData');background-size:cover;background-position:center;opacity:@(opacidadFondo/100.0);filter:blur(2px)"></div>
+                                }
+                                <div style="position:relative;display:flex;align-items:center;height:100%;padding:6px;gap:6px">
+                                    @if (!string.IsNullOrEmpty(imgIzqData))
+                                    {
+                                        <img src="@imgIzqData"
+                                             style="height:70%;object-fit:contain;flex-shrink:0;max-width:30%"
+                                             alt="logo" />
+                                    }
+                                    <div style="flex:1;min-width:0;overflow:hidden">
+                                        @if (!string.IsNullOrEmpty(textTitulo))
+                                        {
+                                            <div style="font-size:@(tamanoTitulo * 0.6)px;font-weight:700;line-height:1.1;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                                @textTitulo
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(nombre))
+                                        {
+                                            <div style="font-size:@(tamanoNombre * 0.6)px;font-weight:600;color:#e63946;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                                @nombre
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(textAdicional))
+                                        {
+                                            <div style="font-size:@(Math.Max(6, tamanoNombre * 0.5))px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                                @textAdicional
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        @if (alumnosSeleccionados.Count > 6)
+                        {
+                            <div class="text-muted align-self-center" style="font-size:.85rem">
+                                +@(alumnosSeleccionados.Count - 6) más...
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    List<Alumno> todosAlumnos        = new();
+    HashSet<int> alumnosSeleccionados = new();
+    string filtroAlumnos = string.Empty;
+
+    // Tamaño
+    int anchoMm       = 90;
+    int altoMm        = 55;
+    int columnasPagina = 2;
+
+    // Texto
+    string textTitulo    = "";
+    string textAdicional = "";
+    string modoNombre    = "completo";
+    int    tamanoTitulo  = 14;
+    int    tamanoNombre  = 12;
+
+    // Imágenes (base64)
+    string imgIzqData   = "";
+    string imgFondoData = "";
+    int    opacidadFondo = 20;
+
+    IEnumerable<Alumno> alumnosFiltrados => string.IsNullOrWhiteSpace(filtroAlumnos)
+        ? todosAlumnos
+        : todosAlumnos.Where(a =>
+            a.Nombre.Contains(filtroAlumnos, StringComparison.OrdinalIgnoreCase) ||
+            (a.Apellidos ?? "").Contains(filtroAlumnos, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        todosAlumnos = await AlumnoSvc.GetTodosAsync();
+    }
+
+    void OnFiltroInput(ChangeEventArgs e)
+        => filtroAlumnos = e.Value?.ToString() ?? string.Empty;
+
+    void SeleccionarTodos()
+    {
+        foreach (var a in alumnosFiltrados)
+            alumnosSeleccionados.Add(a.Id);
+    }
+
+    void SeleccionarNinguno() => alumnosSeleccionados.Clear();
+
+    void ToggleAlumno(int id)
+    {
+        if (alumnosSeleccionados.Contains(id)) alumnosSeleccionados.Remove(id);
+        else alumnosSeleccionados.Add(id);
+    }
+
+    void SetTamano(int ancho, int alto) { anchoMm = ancho; altoMm = alto; }
+
+    string ObtenerNombreEtiqueta(Alumno a) => modoNombre switch
+    {
+        "nombre"    => a.Nombre,
+        "apellidos" => a.Apellidos ?? "",
+        "completo"  => $"{a.Nombre} {a.Apellidos}",
+        _           => ""
+    };
+
+    string EstiloEtiquetaPreview()
+    {
+        // Escalar a previsualización manteniendo proporciones (1mm ≈ 2px para preview)
+        var escala = 1.8;
+        return $"width:{anchoMm * escala}px;height:{altoMm * escala}px;background:white;";
+    }
+
+    async Task CargarImgIzq(InputFileChangeEventArgs e)
+    {
+        var archivo = e.File;
+        if (archivo.Size > 5 * 1024 * 1024) { Toast.ShowError("Máx 5 MB"); return; }
+        byte[] datos;
+        using var stream = archivo.OpenReadStream(5 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        datos = ms.ToArray();
+        imgIzqData = $"data:{archivo.ContentType};base64,{Convert.ToBase64String(datos)}";
+    }
+
+    async Task CargarImgFondo(InputFileChangeEventArgs e)
+    {
+        var archivo = e.File;
+        if (archivo.Size > 5 * 1024 * 1024) { Toast.ShowError("Máx 5 MB"); return; }
+        byte[] datos;
+        using var stream = archivo.OpenReadStream(5 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        datos = ms.ToArray();
+        imgFondoData = $"data:{archivo.ContentType};base64,{Convert.ToBase64String(datos)}";
+    }
+
+    async Task Imprimir()
+    {
+        var alumnos = todosAlumnos
+            .Where(a => alumnosSeleccionados.Contains(a.Id))
+            .Select(a => new { nombre = ObtenerNombreEtiqueta(a) })
+            .ToList();
+
+        await JS.InvokeVoidAsync("imprimirEtiquetas",
+            alumnos.Select(a => a.nombre).ToArray(),
+            textTitulo,
+            textAdicional,
+            anchoMm,
+            altoMm,
+            columnasPagina,
+            tamanoTitulo,
+            tamanoNombre,
+            imgIzqData,
+            imgFondoData,
+            opacidadFondo);
+    }
+}
