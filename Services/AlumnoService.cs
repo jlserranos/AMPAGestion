@@ -11,26 +11,24 @@ public class AlumnoService
     public AlumnoService(IDbContextFactory<ApplicationDbContext> factory)
         => _factory = factory;
 
-    public async Task<List<Alumno>> GetTodosAsync(string? busqueda = null, string? curso = null)
+    // cursoEscolar = nivel (PrimeroESO, SegundoESO...) NO el año académico
+    public async Task<List<Alumno>> GetTodosAsync(
+        string? busqueda = null,
+        CursoEscolar? cursoEscolar = null)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var q = db.Alumnos.Include(a => a.Socio).AsQueryable();
+        var q = db.Alumnos.Include(a => a.Socio).Where(a => a.Activo);
 
         if (!string.IsNullOrWhiteSpace(busqueda))
         {
             busqueda = busqueda.ToLower();
-            q = q.Where(a => a.Nombre.ToLower().Contains(busqueda) ||
-                             (a.Apellidos != null && a.Apellidos.ToLower().Contains(busqueda)));
+            q = q.Where(a =>
+                a.Nombre.ToLower().Contains(busqueda) ||
+                (a.Apellidos != null && a.Apellidos.ToLower().Contains(busqueda)));
         }
-        if (!string.IsNullOrEmpty(curso))
-        {
-            // Filtrar por alumnos activos cuyo socio tiene cuota en ese curso
-            q = q.Where(a => a.Activo);
-        }
-        else
-        {
-            q = q.Where(a => a.Activo);
-        }
+
+        if (cursoEscolar.HasValue)
+            q = q.Where(a => a.Curso == cursoEscolar.Value);
 
         return await q.OrderBy(a => a.Apellidos).ThenBy(a => a.Nombre).ToListAsync();
     }
