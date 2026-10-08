@@ -30,11 +30,22 @@
                         <button class="btn btn-outline-secondary" @onclick="SeleccionarNinguno">Ninguno</button>
                     </div>
                 </div>
-                <div class="mb-2">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="Filtrar alumnos..."
-                               value="@filtroAlumnos" @oninput="OnFiltroInput" />
+                <div class="row g-2 mb-2">
+                    <div class="col-7">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" placeholder="Filtrar alumnos..."
+                                   value="@filtroAlumnos" @oninput="OnFiltroInput" />
+                        </div>
+                    </div>
+                    <div class="col-5">
+                        <select class="form-select form-select-sm" @bind="filtroCurso">
+                            <option value="">Todos los cursos</option>
+                            @foreach (var c in cursosDisponibles)
+                            {
+                                <option value="@c.Curso">@c.Descripcion</option>
+                            }
+                        </select>
                     </div>
                 </div>
                 <div style="max-height:280px;overflow-y:auto" class="border rounded p-2">
@@ -136,6 +147,22 @@
                     <div class="col-6">
                         <label class="form-label" style="font-size:.82rem">Tam. nombre (@tamanoNombre px)</label>
                         <input type="range" class="form-range" min="8" max="22" @bind="tamanoNombre" />
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label" style="font-size:.82rem">Tam. texto adicional (@tamanoAdicional px)</label>
+                        <input type="range" class="form-range" min="6" max="20" @bind="tamanoAdicional" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" style="font-size:.82rem">Fuente texto adicional</label>
+                        <select class="form-select form-select-sm" @bind="fuenteAdicional"
+                                style="font-family:@fuenteAdicional">
+                            @foreach (var f in fuentesDisponibles)
+                            {
+                                <option value="@f.Valor" style="font-family:@f.Valor">@f.Nombre</option>
+                            }
+                        </select>
                     </div>
                 </div>
             </div>
@@ -258,7 +285,7 @@
                                         }
                                         @if (!string.IsNullOrEmpty(textAdicional))
                                         {
-                                            <div style="font-size:@(Math.Max(6, tamanoNombre * 0.55))px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                            <div style="font-size:@(tamanoAdicional * 0.65)px;font-family:@fuenteAdicional;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
                                                 @textAdicional
                                             </div>
                                         }
@@ -293,13 +320,36 @@
     bool   mostrarCurso   = true;
     int    tamanoTitulo   = 14;
     int    tamanoNombre   = 12;
+    int    tamanoAdicional = 10;
+    string fuenteAdicional = "Arial, Helvetica, sans-serif";
+
+    record Fuente(string Nombre, string Valor);
+    static readonly Fuente[] fuentesDisponibles =
+    {
+        new("Arial",           "Arial, Helvetica, sans-serif"),
+        new("Verdana",         "Verdana, Geneva, sans-serif"),
+        new("Tahoma",          "Tahoma, Geneva, sans-serif"),
+        new("Trebuchet MS",    "'Trebuchet MS', sans-serif"),
+        new("Georgia",         "Georgia, serif"),
+        new("Times New Roman", "'Times New Roman', Times, serif"),
+        new("Courier New",     "'Courier New', Courier, monospace"),
+        new("Comic Sans MS",   "'Comic Sans MS', 'Comic Sans', cursive")
+    };
     string imgIzqData     = string.Empty;
     string imgFondoData   = string.Empty;
     int    opacidadFondo  = 20;
 
-    IEnumerable<Alumno> alumnosFiltrados => string.IsNullOrWhiteSpace(filtroAlumnos)
-        ? todosAlumnos
-        : todosAlumnos.Where(a =>
+    string        filtroCurso           = string.Empty;
+
+    // Cursos presentes entre los alumnos cargados, en el orden del enum
+    IEnumerable<(string Curso, string Descripcion)> cursosDisponibles => todosAlumnos
+        .GroupBy(a => a.Curso)
+        .OrderBy(g => g.Key)
+        .Select(g => (g.Key.ToString(), g.First().CursoDescripcion));
+
+    IEnumerable<Alumno> alumnosFiltrados => todosAlumnos
+        .Where(a => string.IsNullOrEmpty(filtroCurso) || a.Curso.ToString() == filtroCurso)
+        .Where(a => string.IsNullOrWhiteSpace(filtroAlumnos) ||
             a.Nombre.Contains(filtroAlumnos, StringComparison.OrdinalIgnoreCase) ||
             (a.Apellidos != null && a.Apellidos.Contains(filtroAlumnos, StringComparison.OrdinalIgnoreCase)));
 
@@ -393,6 +443,7 @@
             nombres, textTitulo, textAdicional,
             anchoMm, altoMm, columnasPagina,
             tamanoTitulo, tamanoNombre,
-            imgIzqData, imgFondoData, opacidadFondo);
+            imgIzqData, imgFondoData, opacidadFondo,
+            tamanoAdicional, fuenteAdicional);
     }
 }
