@@ -116,6 +116,12 @@
                         <option value="completo">Nombre completo</option>
                         <option value="ninguno">No mostrar nombre</option>
                     </select>
+                    <div class="form-check mt-2">
+                        <input type="checkbox" class="form-check-input" id="chkCurso" @bind="mostrarCurso" />
+                        <label class="form-check-label" for="chkCurso" style="font-size:.82rem">
+                            Añadir curso y grupo tras el nombre (Ej: Ana López - 1º ESO A)
+                        </label>
+                    </div>
                 </div>
                 <div class="mb-2">
                     <label class="form-label" style="font-size:.82rem">Texto adicional</label>
@@ -284,6 +290,7 @@
     string textTitulo     = string.Empty;
     string textAdicional  = string.Empty;
     string modoNombre     = "completo";
+    bool   mostrarCurso   = true;
     int    tamanoTitulo   = 14;
     int    tamanoNombre   = 12;
     string imgIzqData     = string.Empty;
@@ -336,13 +343,24 @@
                $"background-position:center;opacity:{opacidadFondo / 100.0};filter:blur(3px);";
     }
 
-    string ObtenerNombreEtiqueta(Alumno a) => modoNombre switch
+    string ObtenerNombreEtiqueta(Alumno a)
     {
-        "nombre"    => a.Nombre,
-        "apellidos" => a.Apellidos ?? string.Empty,
-        "completo"  => $"{a.Nombre} {a.Apellidos}",
-        _           => string.Empty
-    };
+        var nombre = (modoNombre switch
+        {
+            "nombre"    => a.Nombre,
+            "apellidos" => a.Apellidos ?? string.Empty,
+            "completo"  => $"{a.Nombre} {a.Apellidos}",
+            _           => string.Empty
+        }).Trim();
+
+        if (!mostrarCurso) return nombre;
+
+        var curso = string.IsNullOrWhiteSpace(a.Grupo)
+            ? a.CursoDescripcion
+            : $"{a.CursoDescripcion} {a.Grupo.Trim()}";
+
+        return string.IsNullOrEmpty(nombre) ? curso : $"{nombre} - {curso}";
+    }
 
     async Task CargarImgIzq(InputFileChangeEventArgs e)
     {

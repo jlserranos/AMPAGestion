@@ -3,8 +3,11 @@ window.imprimirEtiquetas = function(
     nombres, titulo, textoAdicional,
     anchoMm, altoMm, columnas,
     tamTitulo, tamNombre,
-    imgIzqData, imgFondoData, opacidadFondo
+    imgIzqData, imgFondoData, opacidadFondo,
+    tamAdicional, fuenteAdicional
 ) {
+    tamAdicional    = tamAdicional    || Math.max(7, tamNombre - 2);
+    fuenteAdicional = fuenteAdicional || 'Arial, Helvetica, sans-serif';
     const pxPerMm    = 3.7795275591;
     const anchoLabel = anchoMm * pxPerMm;
     const altoLabel  = altoMm  * pxPerMm;
@@ -68,7 +71,7 @@ window.imprimirEtiquetas = function(
                            ${nombre}</div>`
                     : ''}
                 ${textoAdicional
-                    ? `<div style="font-size:${Math.max(7, tamNombre - 2)}px;
+                    ? `<div style="font-size:${tamAdicional}px;font-family:${fuenteAdicional};
                            color:#555;margin-top:1px;line-height:1.2;
                            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                            ${textoAdicional}</div>`
