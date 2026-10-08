@@ -1,8 +1,8 @@
 // ── Imprimir etiquetas de alumnos ──────────────────────────────────────────
 // Recibe un único objeto de configuración desde Etiquetas.razor (camelCase).
 // Genera páginas A4 explícitas: cada etiqueta queda dentro de los márgenes
-// configurados (área imprimible) y el pie se coloca en el margen inferior
-// izquierdo, también dentro de los márgenes.
+// configurados (área imprimible). El texto inferior (p. ej. "AMPA San Sebastián -
+// IES Montevives") se coloca en la esquina inferior izquierda de CADA etiqueta.
 window.imprimirEtiquetas = function (cfg) {
 
     if (!cfg || !Array.isArray(cfg.nombres))
@@ -20,7 +20,6 @@ window.imprimirEtiquetas = function (cfg) {
     const sep       = cfg.separacionMm;          // espacio entre etiquetas
     const espTexto  = cfg.espaciadoTextoMm;      // espacio entre título / nombre / adicional
     const m         = cfg.margenes;              // { superior, inferior, izquierdo, derecho }
-    const reservaPie = cfg.reservaPieMm || 0;    // alto reservado para el pie
 
     const estiloTexto = (e, extra) =>
         `font-size:${e.tamano}px;font-family:${e.fuente};color:${e.color};` +
@@ -45,15 +44,23 @@ window.imprimirEtiquetas = function (cfg) {
                        position:relative;z-index:1;" />`
         : '';
 
+    const pieHTML = cfg.mostrarPie && cfg.textoPie
+        ? `<div class="pie" style="${estiloTexto(cfg.estiloPie)}">${esc(cfg.textoPie)}</div>`
+        : '';
+
     const etiqueta = nombre => {
         const lineas = [];
         if (cfg.titulo)         lineas.push(`<div style="${estiloTexto(cfg.estiloTitulo)}">${esc(cfg.titulo)}</div>`);
         if (nombre)             lineas.push(`<div style="${estiloTexto(cfg.estiloNombre)}">${esc(nombre)}</div>`);
         if (cfg.textoAdicional) lineas.push(`<div style="${estiloTexto(cfg.estiloAdicional)}">${esc(cfg.textoAdicional)}</div>`);
 
-        return `<div class="etq" style="padding:${padV}mm ${padH}mm;gap:${gapInner}mm">
-                    ${fondoHTML}${imgIzqHTML}
-                    <div class="txt" style="gap:${espTexto}mm">${lineas.join('')}</div>
+        return `<div class="etq" style="padding:${padV}mm ${padH}mm">
+                    ${fondoHTML}
+                    <div class="fila" style="gap:${gapInner}mm">
+                        ${imgIzqHTML}
+                        <div class="txt" style="gap:${espTexto}mm">${lineas.join('')}</div>
+                    </div>
+                    ${pieHTML}
                 </div>`;
     };
 
@@ -62,18 +69,10 @@ window.imprimirEtiquetas = function (cfg) {
     for (let i = 0; i < nombres.length; i += porPagina)
         paginas.push(nombres.slice(i, i + porPagina));
 
-    const pieHTML = cfg.mostrarPie && cfg.textoPie
-        ? `<div class="pie" style="${estiloTexto(cfg.estiloPie)}">${esc(cfg.textoPie)}</div>`
-        : '';
-
     const paginasHTML = paginas.map(p => `
         <section class="pagina">
             <div class="grid">${p.map(etiqueta).join('')}</div>
-            ${pieHTML}
         </section>`).join('');
-
-    // Ancho máximo del pie: el área entre márgenes izquierdo y derecho
-    const anchoUtil = 210 - m.izquierdo - m.derecho;
 
     const html = `<!DOCTYPE html>
 <html lang="es">
@@ -110,8 +109,13 @@ window.imprimirEtiquetas = function (cfg) {
         .etq {
             position:relative; overflow:hidden;
             width:${anchoMm}mm; height:${altoMm}mm;
-            display:flex; align-items:center;
+            display:flex; flex-direction:column;
             border:1px solid #ccc; border-radius:1mm; background:white;
+        }
+
+        .fila {
+            flex:1; min-height:0; position:relative; z-index:1;
+            display:flex; align-items:center;
         }
 
         .txt {
@@ -119,11 +123,10 @@ window.imprimirEtiquetas = function (cfg) {
             display:flex; flex-direction:column; justify-content:center;
         }
 
+        /* Texto inferior izquierdo de cada etiqueta */
         .pie {
-            position:absolute;
-            left:${m.izquierdo}mm;
-            bottom:${m.inferior}mm;
-            max-width:${anchoUtil}mm;
+            position:relative; z-index:1; flex-shrink:0;
+            text-align:left; align-self:stretch;
         }
 
         @media print {

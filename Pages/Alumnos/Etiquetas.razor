@@ -220,12 +220,12 @@
             </div>
         </div>
 
-        <!-- Pie de página -->
+        <!-- Texto inferior izquierdo de cada etiqueta -->
         <div class="card shadow-sm border-0 mb-3">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="fw-semibold mb-0">
-                        <i class="bi bi-text-left me-2 text-primary"></i>Pie de página (inferior izquierdo)
+                        <i class="bi bi-text-left me-2 text-primary"></i>Texto inferior izquierdo de la etiqueta
                     </h6>
                     <div class="form-check form-switch mb-0">
                         <input type="checkbox" class="form-check-input" id="chkPie" @bind="mostrarPie" />
@@ -336,7 +336,8 @@
                                 {
                                     <div style="@FondoStyle()"></div>
                                 }
-                                <div style="position:relative;display:flex;align-items:center;height:100%;padding:@Px(altoMm * 0.07)px @Px(anchoMm * 0.04)px;gap:@Px(anchoMm * 0.03)px;z-index:1">
+                                <div style="position:relative;display:flex;flex-direction:column;height:100%;padding:@Px(altoMm * 0.07)px @Px(anchoMm * 0.04)px;z-index:1">
+                                <div style="flex:1;min-height:0;display:flex;align-items:center;gap:@Px(anchoMm * 0.03)px">
                                     @if (!string.IsNullOrEmpty(imgIzqData))
                                     {
                                         <img src="@imgIzqData"
@@ -357,6 +358,11 @@
                                         }
                                     </div>
                                 </div>
+                                @if (mostrarPie && !string.IsNullOrWhiteSpace(textoPie))
+                                {
+                                    <div style="@EstiloPreview(estiloPie) flex-shrink:0;text-align:left">@textoPie</div>
+                                }
+                                </div>
                             </div>
                         }
                         @if (alumnosSeleccionados.Count > 6)
@@ -367,15 +373,6 @@
                         }
                     </div>
 
-                    @if (mostrarPie && !string.IsNullOrWhiteSpace(textoPie))
-                    {
-                        <div class="border-top mt-3 pt-2">
-                            <small class="text-muted d-block mb-1" style="font-size:.75rem">
-                                Pie (margen inferior izquierdo de cada página):
-                            </small>
-                            <div style="@EstiloPreview(estiloPie)">@textoPie</div>
-                        </div>
-                    }
                 }
             </div>
         </div>
@@ -450,13 +447,8 @@
     string        filtroCurso           = string.Empty;
 
     // ── Cálculo de distribución en A4 ──────────────────────────────────────
-    // Alto reservado bajo la rejilla para el pie (texto + 2 mm de aire)
-    double ReservaPieMm => mostrarPie && !string.IsNullOrWhiteSpace(textoPie)
-        ? estiloPie.Tamano * 1.3 / PxPorMm + 2
-        : 0;
-
     double AnchoUtilMm => A4AnchoMm - margenIzq - margenDer;
-    double AltoUtilMm  => A4AltoMm  - margenSup - margenInf - ReservaPieMm;
+    double AltoUtilMm  => A4AltoMm  - margenSup - margenInf;
 
     int MaxColumnas => anchoMm <= 0 ? 0 : (int)Math.Floor((AnchoUtilMm + separacionMm) / (anchoMm + separacionMm));
     int FilasPagina => altoMm  <= 0 ? 0 : (int)Math.Floor((AltoUtilMm  + separacionMm) / (altoMm  + separacionMm));
@@ -629,8 +621,7 @@
                 separacionMm,
                 espaciadoTextoMm,
                 margenes         = new { superior = margenSup, inferior = margenInf, izquierdo = margenIzq, derecho = margenDer },
-                reservaPieMm     = ReservaPieMm,
-                estiloTitulo,
+                    estiloTitulo,
                 estiloNombre,
                 estiloAdicional,
                 estiloPie,
