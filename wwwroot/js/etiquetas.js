@@ -5,6 +5,9 @@
 // izquierdo, también dentro de los márgenes.
 window.imprimirEtiquetas = function (cfg) {
 
+    if (!cfg || !Array.isArray(cfg.nombres))
+        throw new Error('Configuración de etiquetas no válida');
+
     const esc = s => String(s ?? '')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');

@@ -615,28 +615,40 @@
             .Select(ObtenerNombreEtiqueta)
             .ToArray();
 
-        await JS.InvokeVoidAsync("imprimirEtiquetas", new
+        try
         {
-            nombres,
-            titulo           = textTitulo,
-            textoAdicional   = textAdicional,
-            anchoMm,
-            altoMm,
-            columnas         = ColumnasEfectivas,
-            filas            = FilasPagina,
-            separacionMm,
-            espaciadoTextoMm,
-            margenes         = new { superior = margenSup, inferior = margenInf, izquierdo = margenIzq, derecho = margenDer },
-            reservaPieMm     = ReservaPieMm,
-            estiloTitulo,
-            estiloNombre,
-            estiloAdicional,
-            estiloPie,
-            mostrarPie       = mostrarPie && !string.IsNullOrWhiteSpace(textoPie),
-            textoPie,
-            imgIzqData,
-            imgFondoData,
-            opacidadFondo
-        });
+            await JS.InvokeVoidAsync("imprimirEtiquetas", new
+            {
+                nombres,
+                titulo           = textTitulo,
+                textoAdicional   = textAdicional,
+                anchoMm,
+                altoMm,
+                columnas         = ColumnasEfectivas,
+                filas            = FilasPagina,
+                separacionMm,
+                espaciadoTextoMm,
+                margenes         = new { superior = margenSup, inferior = margenInf, izquierdo = margenIzq, derecho = margenDer },
+                reservaPieMm     = ReservaPieMm,
+                estiloTitulo,
+                estiloNombre,
+                estiloAdicional,
+                estiloPie,
+                mostrarPie       = mostrarPie && !string.IsNullOrWhiteSpace(textoPie),
+                textoPie,
+                imgIzqData,
+                imgFondoData,
+                opacidadFondo
+            });
+        }
+        catch (JSException ex)
+        {
+            // Sin capturar, la excepción tumba el circuito de Blazor y la página deja de responder
+            Toast.ShowError($"No se pudo imprimir: {ex.Message}. Recarga la página con Ctrl+F5.");
+        }
+        catch (TaskCanceledException)
+        {
+            Toast.ShowError("La impresión tardó demasiado en prepararse. Vuelve a intentarlo.");
+        }
     }
 }
