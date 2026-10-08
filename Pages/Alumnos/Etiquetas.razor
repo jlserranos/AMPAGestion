@@ -65,22 +65,22 @@
             </div>
         </div>
 
-        <!-- Tamaño -->
+        <!-- Tamaño y página -->
         <div class="card shadow-sm border-0 mb-3">
             <div class="card-body">
                 <h6 class="fw-semibold mb-3">
-                    <i class="bi bi-rulers me-2 text-primary"></i>Tamaño de etiqueta
+                    <i class="bi bi-rulers me-2 text-primary"></i>Tamaño y distribución
                 </h6>
                 <div class="row g-2 mb-2">
                     <div class="col-6">
                         <label class="form-label" style="font-size:.82rem">Ancho (mm)</label>
                         <input type="number" class="form-control form-control-sm"
-                               @bind="anchoMm" min="30" max="210" />
+                               @bind="anchoMm" min="30" max="200" />
                     </div>
                     <div class="col-6">
                         <label class="form-label" style="font-size:.82rem">Alto (mm)</label>
                         <input type="number" class="form-control form-control-sm"
-                               @bind="altoMm" min="15" max="150" />
+                               @bind="altoMm" min="15" max="280" />
                     </div>
                 </div>
                 <div class="mb-2">
@@ -96,15 +96,75 @@
                                 style="font-size:.78rem" @onclick="() => SetTamano(50,50)">Cuadrada 50×50</button>
                     </div>
                 </div>
-                <div>
-                    <label class="form-label" style="font-size:.82rem">Columnas por página</label>
-                    <select class="form-select form-select-sm" @bind="columnasPagina">
-                        <option value="1">1 columna</option>
-                        <option value="2">2 columnas</option>
-                        <option value="3">3 columnas</option>
-                        <option value="4">4 columnas</option>
-                    </select>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label" style="font-size:.82rem">Columnas por página</label>
+                        <select class="form-select form-select-sm" @bind="columnasPagina">
+                            <option value="1">1 columna</option>
+                            <option value="2">2 columnas</option>
+                            <option value="3">3 columnas</option>
+                            <option value="4">4 columnas</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" style="font-size:.82rem">Separación entre etiquetas (mm)</label>
+                        <input type="number" class="form-control form-control-sm" step="0.5"
+                               @bind="separacionMm" @bind:after="Normalizar" min="0" max="20" />
+                    </div>
                 </div>
+
+                <label class="form-label fw-semibold" style="font-size:.82rem">
+                    Márgenes de página (mm) <span class="text-muted fw-normal">· mínimo @MargenMinimo mm</span>
+                </label>
+                <div class="row g-2">
+                    <div class="col-3">
+                        <label class="form-label mb-0 text-muted" style="font-size:.75rem">Superior</label>
+                        <input type="number" class="form-control form-control-sm" step="0.5"
+                               @bind="margenSup" @bind:after="Normalizar" min="@MargenMinimo" max="60" />
+                    </div>
+                    <div class="col-3">
+                        <label class="form-label mb-0 text-muted" style="font-size:.75rem">Inferior</label>
+                        <input type="number" class="form-control form-control-sm" step="0.5"
+                               @bind="margenInf" @bind:after="Normalizar" min="@MargenMinimo" max="60" />
+                    </div>
+                    <div class="col-3">
+                        <label class="form-label mb-0 text-muted" style="font-size:.75rem">Izquierdo</label>
+                        <input type="number" class="form-control form-control-sm" step="0.5"
+                               @bind="margenIzq" @bind:after="Normalizar" min="@MargenMinimo" max="60" />
+                    </div>
+                    <div class="col-3">
+                        <label class="form-label mb-0 text-muted" style="font-size:.75rem">Derecho</label>
+                        <input type="number" class="form-control form-control-sm" step="0.5"
+                               @bind="margenDer" @bind:after="Normalizar" min="@MargenMinimo" max="60" />
+                    </div>
+                </div>
+
+                @if (MaxColumnas < 1 || FilasPagina < 1)
+                {
+                    <div class="alert alert-danger py-1 px-2 mt-2 mb-0" style="font-size:.8rem">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        La etiqueta no cabe en el área imprimible de un A4 con estos márgenes.
+                    </div>
+                }
+                else
+                {
+                    <div class="mt-2 text-muted" style="font-size:.8rem">
+                        <i class="bi bi-grid-3x3 me-1"></i>
+                        @ColumnasEfectivas × @FilasPagina etiquetas por página A4
+                        @if (alumnosSeleccionados.Count > 0)
+                        {
+                            <span> · @Paginas página@(Paginas != 1 ? "s" : "")</span>
+                        }
+                    </div>
+                    @if (columnasPagina > MaxColumnas)
+                    {
+                        <div class="alert alert-warning py-1 px-2 mt-2 mb-0" style="font-size:.8rem">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Solo caben @MaxColumnas columna@(MaxColumnas != 1 ? "s" : "") dentro de los márgenes;
+                            se imprimirán @MaxColumnas.
+                        </div>
+                    }
+                }
             </div>
         </div>
 
@@ -114,12 +174,15 @@
                 <h6 class="fw-semibold mb-3">
                     <i class="bi bi-fonts me-2 text-primary"></i>Texto de la etiqueta
                 </h6>
-                <div class="mb-2">
+
+                <div class="mb-3">
                     <label class="form-label" style="font-size:.82rem">Título principal</label>
                     <input type="text" class="form-control form-control-sm" @bind="textTitulo"
                            placeholder="Ej: BOCADILLO DE QUESO" />
+                    @EditorEstilo(estiloTitulo)
                 </div>
-                <div class="mb-2">
+
+                <div class="mb-3">
                     <label class="form-label" style="font-size:.82rem">Nombre del alumno</label>
                     <select class="form-select form-select-sm" @bind="modoNombre">
                         <option value="nombre">Solo nombre</option>
@@ -127,44 +190,53 @@
                         <option value="completo">Nombre completo</option>
                         <option value="ninguno">No mostrar nombre</option>
                     </select>
-                    <div class="form-check mt-2">
+                    <div class="form-check mt-1">
                         <input type="checkbox" class="form-check-input" id="chkCurso" @bind="mostrarCurso" />
                         <label class="form-check-label" for="chkCurso" style="font-size:.82rem">
                             Añadir curso y grupo tras el nombre (Ej: Ana López - 1º ESO A)
                         </label>
                     </div>
+                    @EditorEstilo(estiloNombre)
                 </div>
-                <div class="mb-2">
+
+                <div class="mb-3">
                     <label class="form-label" style="font-size:.82rem">Texto adicional</label>
                     <textarea class="form-control form-control-sm" rows="2" @bind="textAdicional"
                               placeholder="Ej: Excursión · 15 junio 2025"></textarea>
+                    @EditorEstilo(estiloAdicional)
                 </div>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <label class="form-label" style="font-size:.82rem">Tam. título (@tamanoTitulo px)</label>
-                        <input type="range" class="form-range" min="8" max="22" @bind="tamanoTitulo" />
+
+                <div class="row g-2 align-items-center">
+                    <div class="col-8">
+                        <label class="form-label mb-0" style="font-size:.82rem">
+                            Espacio entre título, nombre y texto adicional (mm)
+                        </label>
                     </div>
-                    <div class="col-6">
-                        <label class="form-label" style="font-size:.82rem">Tam. nombre (@tamanoNombre px)</label>
-                        <input type="range" class="form-range" min="8" max="22" @bind="tamanoNombre" />
-                    </div>
-                </div>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <label class="form-label" style="font-size:.82rem">Tam. texto adicional (@tamanoAdicional px)</label>
-                        <input type="range" class="form-range" min="6" max="20" @bind="tamanoAdicional" />
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label" style="font-size:.82rem">Fuente texto adicional</label>
-                        <select class="form-select form-select-sm" @bind="fuenteAdicional"
-                                style="font-family:@fuenteAdicional">
-                            @foreach (var f in fuentesDisponibles)
-                            {
-                                <option value="@f.Valor" style="font-family:@f.Valor">@f.Nombre</option>
-                            }
-                        </select>
+                    <div class="col-4">
+                        <input type="number" class="form-control form-control-sm" min="0" max="10" step="0.5"
+                               @bind="espaciadoTextoMm" @bind:after="Normalizar" />
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Pie de página -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-semibold mb-0">
+                        <i class="bi bi-text-left me-2 text-primary"></i>Pie de página (inferior izquierdo)
+                    </h6>
+                    <div class="form-check form-switch mb-0">
+                        <input type="checkbox" class="form-check-input" id="chkPie" @bind="mostrarPie" />
+                        <label class="form-check-label" for="chkPie" style="font-size:.82rem">Mostrar</label>
+                    </div>
+                </div>
+                @if (mostrarPie)
+                {
+                    <input type="text" class="form-control form-control-sm" @bind="textoPie" />
+                    @EditorEstilo(estiloPie)
+                }
             </div>
         </div>
 
@@ -227,7 +299,7 @@
 
         <button class="btn btn-primary w-100 btn-lg"
                 @onclick="Imprimir"
-                disabled="@(alumnosSeleccionados.Count == 0)">
+                disabled="@(alumnosSeleccionados.Count == 0 || ColumnasEfectivas < 1 || FilasPagina < 1)">
             <i class="bi bi-printer me-2"></i>
             Imprimir @alumnosSeleccionados.Count
             etiqueta@(alumnosSeleccionados.Count != 1 ? "s" : "")
@@ -250,7 +322,7 @@
                 }
                 else
                 {
-                    <div class="d-flex flex-wrap gap-2">
+                    <div class="d-flex flex-wrap" style="gap:@Px(separacionMm)px">
                         @foreach (var id in alumnosSeleccionados.Take(6))
                         {
                             var alumno = todosAlumnos.FirstOrDefault(a => a.Id == id);
@@ -264,30 +336,24 @@
                                 {
                                     <div style="@FondoStyle()"></div>
                                 }
-                                <div style="position:relative;display:flex;align-items:center;height:100%;padding:6px;gap:6px;z-index:1">
+                                <div style="position:relative;display:flex;align-items:center;height:100%;padding:@Px(altoMm * 0.07)px @Px(anchoMm * 0.04)px;gap:@Px(anchoMm * 0.03)px;z-index:1">
                                     @if (!string.IsNullOrEmpty(imgIzqData))
                                     {
                                         <img src="@imgIzqData"
                                              style="height:72%;object-fit:contain;flex-shrink:0;max-width:28%" />
                                     }
-                                    <div style="flex:1;min-width:0;overflow:hidden">
+                                    <div style="flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:@Px(espaciadoTextoMm)px">
                                         @if (!string.IsNullOrEmpty(textTitulo))
                                         {
-                                            <div style="font-size:@(tamanoTitulo * 0.65)px;font-weight:700;line-height:1.1;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                                                @textTitulo
-                                            </div>
+                                            <div style="@EstiloPreview(estiloTitulo)">@textTitulo</div>
                                         }
                                         @if (!string.IsNullOrEmpty(nombre))
                                         {
-                                            <div style="font-size:@(tamanoNombre * 0.65)px;font-weight:600;color:#e63946;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                                                @nombre
-                                            </div>
+                                            <div style="@EstiloPreview(estiloNombre)">@nombre</div>
                                         }
                                         @if (!string.IsNullOrEmpty(textAdicional))
                                         {
-                                            <div style="font-size:@(tamanoAdicional * 0.65)px;font-family:@fuenteAdicional;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                                                @textAdicional
-                                            </div>
+                                            <div style="@EstiloPreview(estiloAdicional)">@textAdicional</div>
                                         }
                                     </div>
                                 </div>
@@ -300,6 +366,16 @@
                             </div>
                         }
                     </div>
+
+                    @if (mostrarPie && !string.IsNullOrWhiteSpace(textoPie))
+                    {
+                        <div class="border-top mt-3 pt-2">
+                            <small class="text-muted d-block mb-1" style="font-size:.75rem">
+                                Pie (margen inferior izquierdo de cada página):
+                            </small>
+                            <div style="@EstiloPreview(estiloPie)">@textoPie</div>
+                        </div>
+                    }
                 }
             </div>
         </div>
@@ -307,26 +383,56 @@
 </div>
 
 @code {
+    // ── Constantes de página ────────────────────────────────────────────────
+    const double PxPorMm      = 3.7795275591;   // 96 dpi
+    const double A4AnchoMm    = 210;
+    const double A4AltoMm     = 297;
+    const double MargenMinimo = 5;              // área no imprimible típica de impresoras
+    const double EscalaPreview = 1.8;           // px por mm en la previsualización
+
     List<Alumno>  todosAlumnos          = new();
     HashSet<int>  alumnosSeleccionados  = new();
     string        filtroAlumnos         = string.Empty;
 
+    // ── Tamaño y distribución ──────────────────────────────────────────────
     int    anchoMm        = 90;
     int    altoMm         = 55;
     int    columnasPagina = 2;
+    double separacionMm   = 4;
+    double margenSup      = 10;
+    double margenInf      = 10;
+    double margenIzq      = 10;
+    double margenDer      = 10;
+
+    // ── Textos ─────────────────────────────────────────────────────────────
     string textTitulo     = string.Empty;
     string textAdicional  = string.Empty;
     string modoNombre     = "completo";
     bool   mostrarCurso   = true;
-    int    tamanoTitulo   = 14;
-    int    tamanoNombre   = 12;
-    int    tamanoAdicional = 10;
-    string fuenteAdicional = "Arial, Helvetica, sans-serif";
+    double espaciadoTextoMm = 1.5;
+
+    bool   mostrarPie     = true;
+    string textoPie       = "AMPA San Sebastián - IES Montevives";
+
+    public class EstiloTexto
+    {
+        public int    Tamano  { get; set; }
+        public string Color   { get; set; } = "#000000";
+        public string Fuente  { get; set; } = "Arial, Helvetica, sans-serif";
+        public bool   Negrita { get; set; }
+    }
+
+    EstiloTexto estiloTitulo    = new() { Tamano = 14, Color = "#1a1a2e", Negrita = true };
+    EstiloTexto estiloNombre    = new() { Tamano = 12, Color = "#e63946", Negrita = true };
+    EstiloTexto estiloAdicional = new() { Tamano = 10, Color = "#555555" };
+    EstiloTexto estiloPie       = new() { Tamano = 9,  Color = "#6c757d" };
 
     record Fuente(string Nombre, string Valor);
     static readonly Fuente[] fuentesDisponibles =
     {
         new("Arial",           "Arial, Helvetica, sans-serif"),
+        new("Calibri",         "Calibri, Carlito, sans-serif"),
+        new("Segoe UI",        "'Segoe UI', Tahoma, sans-serif"),
         new("Verdana",         "Verdana, Geneva, sans-serif"),
         new("Tahoma",          "Tahoma, Geneva, sans-serif"),
         new("Trebuchet MS",    "'Trebuchet MS', sans-serif"),
@@ -335,11 +441,77 @@
         new("Courier New",     "'Courier New', Courier, monospace"),
         new("Comic Sans MS",   "'Comic Sans MS', 'Comic Sans', cursive")
     };
+
+    // ── Imágenes ───────────────────────────────────────────────────────────
     string imgIzqData     = string.Empty;
     string imgFondoData   = string.Empty;
     int    opacidadFondo  = 20;
 
     string        filtroCurso           = string.Empty;
+
+    // ── Cálculo de distribución en A4 ──────────────────────────────────────
+    // Alto reservado bajo la rejilla para el pie (texto + 2 mm de aire)
+    double ReservaPieMm => mostrarPie && !string.IsNullOrWhiteSpace(textoPie)
+        ? estiloPie.Tamano * 1.3 / PxPorMm + 2
+        : 0;
+
+    double AnchoUtilMm => A4AnchoMm - margenIzq - margenDer;
+    double AltoUtilMm  => A4AltoMm  - margenSup - margenInf - ReservaPieMm;
+
+    int MaxColumnas => anchoMm <= 0 ? 0 : (int)Math.Floor((AnchoUtilMm + separacionMm) / (anchoMm + separacionMm));
+    int FilasPagina => altoMm  <= 0 ? 0 : (int)Math.Floor((AltoUtilMm  + separacionMm) / (altoMm  + separacionMm));
+    int ColumnasEfectivas => Math.Min(columnasPagina, MaxColumnas);
+    int Paginas => ColumnasEfectivas < 1 || FilasPagina < 1 ? 0
+        : (int)Math.Ceiling(alumnosSeleccionados.Count / (double)(ColumnasEfectivas * FilasPagina));
+
+    void Normalizar()
+    {
+        margenSup = Math.Max(MargenMinimo, margenSup);
+        margenInf = Math.Max(MargenMinimo, margenInf);
+        margenIzq = Math.Max(MargenMinimo, margenIzq);
+        margenDer = Math.Max(MargenMinimo, margenDer);
+        separacionMm = Math.Clamp(separacionMm, 0, 20);
+        espaciadoTextoMm = Math.Clamp(espaciadoTextoMm, 0, 10);
+        foreach (var e in new[] { estiloTitulo, estiloNombre, estiloAdicional, estiloPie })
+            e.Tamano = Math.Clamp(e.Tamano, 6, 40);
+    }
+
+    // ── Editor de estilo reutilizable (tamaño, color, fuente, negrita) ─────
+    RenderFragment EditorEstilo(EstiloTexto e) => @<div class="row g-2 mt-1 align-items-end">
+        <div class="col-5">
+            <label class="form-label mb-0 text-muted" style="font-size:.75rem">Fuente</label>
+            <select class="form-select form-select-sm" @bind="e.Fuente" style="font-family:@e.Fuente">
+                @foreach (var f in fuentesDisponibles)
+                {
+                    <option value="@f.Valor" style="font-family:@f.Valor">@f.Nombre</option>
+                }
+            </select>
+        </div>
+        <div class="col-3">
+            <label class="form-label mb-0 text-muted" style="font-size:.75rem">Tamaño (px)</label>
+            <input type="number" class="form-control form-control-sm" min="6" max="40" @bind="e.Tamano" />
+        </div>
+        <div class="col-2">
+            <label class="form-label mb-0 text-muted" style="font-size:.75rem">Color</label>
+            <input type="color" class="form-control form-control-sm form-control-color w-100 p-1" @bind="e.Color" />
+        </div>
+        <div class="col-2">
+            <button type="button" title="Negrita"
+                    class="btn btn-sm w-100 @(e.Negrita ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick="() => e.Negrita = !e.Negrita">
+                <i class="bi bi-type-bold"></i>
+            </button>
+        </div>
+    </div>;
+
+    // ── Previsualización ───────────────────────────────────────────────────
+    static string Num(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    static string Px(double mm) => Num(mm * EscalaPreview);
+
+    string EstiloPreview(EstiloTexto e)
+        => $"font-size:{Num(e.Tamano * EscalaPreview / PxPorMm)}px;font-family:{e.Fuente};color:{e.Color};" +
+           $"font-weight:{(e.Negrita ? 700 : 400)};line-height:1.15;" +
+           "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
 
     // Cursos presentes entre los alumnos cargados, en el orden del enum
     IEnumerable<(string Curso, string Descripcion)> cursosDisponibles => todosAlumnos
@@ -377,11 +549,8 @@
 
     // Estilos construidos en C# para evitar CS1011 con comillas simples en url() dentro de Razor
     string EtiquetaContainerStyle()
-    {
-        double escala = 1.8;
-        return $"width:{anchoMm * escala}px;height:{altoMm * escala}px;" +
-               "background:white;position:relative;overflow:hidden;display:inline-block;";
-    }
+        => $"width:{Px(anchoMm)}px;height:{Px(altoMm)}px;" +
+           "background:white;position:relative;overflow:hidden;display:inline-block;";
 
     string FondoStyle()
     {
@@ -390,7 +559,7 @@
             ? $"background-image:url('{imgFondoData}');"
             : string.Empty;
         return $"position:absolute;inset:0;{bg}background-size:cover;" +
-               $"background-position:center;opacity:{opacidadFondo / 100.0};filter:blur(3px);";
+               $"background-position:center;opacity:{Num(opacidadFondo / 100.0)};filter:blur(3px);";
     }
 
     string ObtenerNombreEtiqueta(Alumno a)
@@ -434,16 +603,40 @@
 
     async Task Imprimir()
     {
+        Normalizar();
+        if (ColumnasEfectivas < 1 || FilasPagina < 1)
+        {
+            Toast.ShowError("La etiqueta no cabe en el área imprimible con estos márgenes.");
+            return;
+        }
+
         var nombres = todosAlumnos
             .Where(a => alumnosSeleccionados.Contains(a.Id))
             .Select(ObtenerNombreEtiqueta)
             .ToArray();
 
-        await JS.InvokeVoidAsync("imprimirEtiquetas",
-            nombres, textTitulo, textAdicional,
-            anchoMm, altoMm, columnasPagina,
-            tamanoTitulo, tamanoNombre,
-            imgIzqData, imgFondoData, opacidadFondo,
-            tamanoAdicional, fuenteAdicional);
+        await JS.InvokeVoidAsync("imprimirEtiquetas", new
+        {
+            nombres,
+            titulo           = textTitulo,
+            textoAdicional   = textAdicional,
+            anchoMm,
+            altoMm,
+            columnas         = ColumnasEfectivas,
+            filas            = FilasPagina,
+            separacionMm,
+            espaciadoTextoMm,
+            margenes         = new { superior = margenSup, inferior = margenInf, izquierdo = margenIzq, derecho = margenDer },
+            reservaPieMm     = ReservaPieMm,
+            estiloTitulo,
+            estiloNombre,
+            estiloAdicional,
+            estiloPie,
+            mostrarPie       = mostrarPie && !string.IsNullOrWhiteSpace(textoPie),
+            textoPie,
+            imgIzqData,
+            imgFondoData,
+            opacidadFondo
+        });
     }
 }
