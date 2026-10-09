@@ -213,7 +213,7 @@ else
     {
         cargando = true;
         socio = await SocioSvc.GetByIdAsync(Id);
-        nuevaCuota = new Cuota { SocioId = Id, Fecha = DateTime.Today, Importe = 25m };
+        nuevaCuota = new Cuota { SocioId = Id, Fecha = DateTime.Today, Importe = 20m };
         cargando = false;
     }
 

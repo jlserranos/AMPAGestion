@@ -230,7 +230,7 @@
 
     Socio?  socioParaCuota   = null;
     Socio?  socioAEliminar   = null;
-    decimal cuotaImporte     = 25m;
+    decimal cuotaImporte     = 20m;
     MetodoPago cuotaMetodo   = MetodoPago.Bizum;
 
     protected override async Task OnInitializedAsync()
@@ -281,7 +281,7 @@
     void RegistrarCuotaRapida(Socio socio)
     {
         socioParaCuota = socio;
-        cuotaImporte   = 25m;
+        cuotaImporte   = 20m;
         cuotaMetodo    = MetodoPago.Bizum;
     }
 

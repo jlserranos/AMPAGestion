@@ -134,8 +134,8 @@ public class ApplicationDbContext : DbContext
             new Alumno { Id = 4, Nombre = "Sara",  Apellidos = "Fernández",Curso = CursoEscolar.PrimeroBachiller, SocioId = 3, Activo = true }
         );
         builder.Entity<Cuota>().HasData(
-            new Cuota { Id = 1, Fecha = new DateTime(2024, 9, 10), Concepto = "Cuota 2024-2025", Importe = 25m, Metodo = MetodoPago.Bizum,        SocioId = 1, CursoAcademico = "2024-2025" },
-            new Cuota { Id = 2, Fecha = new DateTime(2024, 9, 12), Concepto = "Cuota 2024-2025", Importe = 25m, Metodo = MetodoPago.Transferencia, SocioId = 3, CursoAcademico = "2024-2025" }
+            new Cuota { Id = 1, Fecha = new DateTime(2024, 9, 10), Concepto = "Cuota 2024-2025", Importe = 20m, Metodo = MetodoPago.Bizum,        SocioId = 1, CursoAcademico = "2024-2025" },
+            new Cuota { Id = 2, Fecha = new DateTime(2024, 9, 12), Concepto = "Cuota 2024-2025", Importe = 20m, Metodo = MetodoPago.Transferencia, SocioId = 3, CursoAcademico = "2024-2025" }
         );
         builder.Entity<Factura>().HasData(
             new Factura { Id = 1, Fecha = new DateTime(2024, 10, 5),  Proveedor = "Imprenta Rápida S.L.", Concepto = "Folletos Halloween",     BaseImponible = 80m,  IVA = 16.80m, PorcentajeIVA = 21, Categoria = CategoriaGasto.Comunicacion, Pagado = true,  FechaPago = new DateTime(2024, 10, 10) },

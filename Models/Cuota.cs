@@ -13,7 +13,7 @@ public class Cuota
     public string Concepto { get; set; } = "Cuota anual";
 
     [Range(0.01, 9999.99)]
-    public decimal Importe { get; set; } = 25m;
+    public decimal Importe { get; set; } = 20m;
 
     public MetodoPago Metodo { get; set; } = MetodoPago.Bizum;
 
