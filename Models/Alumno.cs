@@ -45,9 +45,9 @@ public class Alumno
         CursoEscolar.PrimeroBachiller     => "1º Bachillerato",
         CursoEscolar.SegundoBachiller     => "2º Bachillerato",
         CursoEscolar.PrimeroGradoMedio    => "1º Grado Medio",
-        CursoEscolar.SegundoGradoSuperior => "2º Grado Superior",
         CursoEscolar.SegundoGradoMedio    => "2º Grado Medio",
         CursoEscolar.PrimeroGradoSuperior => "1º Grado Superior",
+        CursoEscolar.SegundoGradoSuperior => "2º Grado Superior",
         _ => Curso.ToString()
     };
 }
