@@ -9,7 +9,8 @@ public enum CursoEscolar
 {
     PrimeroESO, SegundoESO, TerceroESO, CuartoESO,
     PrimeroBachiller, SegundoBachiller,
-    PrimeroGradoMedio, SegundoGradoSuperior
+    PrimeroGradoMedio, SegundoGradoSuperior,
+    SegundoGradoMedio, PrimeroGradoSuperior
 }
 
 public enum OrigenSubvencion

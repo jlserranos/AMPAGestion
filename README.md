@@ -105,3 +105,12 @@ AMPAGestion/
 - Módulo de actividades y eventos
 - Autenticación con roles (admin, tesorero, consulta)
 - Subida de archivos PDF de facturas
+
+
+Para añadir paths
+powershell
+$dir = "$env:USERPROFILE\.local\bin"
+$path = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($path -notlike "*$dir*") {
+    [Environment]::SetEnvironmentVariable("Path", "$path;$dir", "User")
+}
