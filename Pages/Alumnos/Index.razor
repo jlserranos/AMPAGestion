@@ -34,7 +34,7 @@
             <div class="col-md-4">
                 <select class="form-select form-select-sm" @bind="filtroCurso" @bind:after="Buscar">
                     <option value="">— Todos los cursos —</option>
-                    @foreach (var c in Enum.GetValues<CursoEscolar>())
+                    @foreach (var c in Alumno.CursosOrdenados)
                     {
                         <option value="@c">@CursoDesc(c)</option>
                     }

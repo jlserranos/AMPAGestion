@@ -36,6 +36,15 @@ public class Alumno
         ? Nombre
         : $"{Nombre} {Apellidos}";
 
+    // Orden de presentación (el orden del enum se mantiene por compatibilidad con la BD)
+    public static readonly CursoEscolar[] CursosOrdenados =
+    {
+        CursoEscolar.PrimeroESO, CursoEscolar.SegundoESO, CursoEscolar.TerceroESO, CursoEscolar.CuartoESO,
+        CursoEscolar.PrimeroBachiller, CursoEscolar.SegundoBachiller,
+        CursoEscolar.PrimeroGradoMedio, CursoEscolar.SegundoGradoMedio,
+        CursoEscolar.PrimeroGradoSuperior, CursoEscolar.SegundoGradoSuperior
+    };
+
     public string CursoDescripcion => Curso switch
     {
         CursoEscolar.PrimeroESO           => "1º ESO",

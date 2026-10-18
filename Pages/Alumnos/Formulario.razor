@@ -44,7 +44,7 @@ else
                             <div class="col-md-6">
                                 <label class="form-label">Curso</label>
                                 <InputSelect @bind-Value="alumno.Curso" class="form-select">
-                                    @foreach (var c in Enum.GetValues<CursoEscolar>())
+                                    @foreach (var c in Alumno.CursosOrdenados)
                                     {
                                         <option value="@c">@CursoDesc(c)</option>
                                     }
